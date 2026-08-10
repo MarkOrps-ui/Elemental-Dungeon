@@ -22,21 +22,21 @@ local KeyCode = Enum.KeyCode.R
 local IsKeyPressed = false
 
 -- ============================================
--- KITSUNE EQUIP FUNCTIONS (FIXED)
+-- KITSUNE EQUIP FUNCTIONS (FIXED KEYPRESS)
 -- ============================================
 
 local function IsKitsuneEquipped()
     local Character = game.Players.LocalPlayer.Character
     if not Character then return false end
     
-    -- Check if Kitsune is in workspace under character (this is where it appears when equipped)
+    -- Check if Kitsune is in workspace under character
     local kitsune = Character:FindFirstChild("Kitsune")
     if kitsune then
-        print("✅ Kitsune is equipped (found in workspace)")
+        print("✅ Kitsune is equipped")
         return true
     end
     
-    print("❌ Kitsune not equipped (not found in workspace)")
+    print("❌ Kitsune not equipped")
     return false
 end
 
@@ -50,139 +50,133 @@ local function EquipKitsune()
     end
     
     local success = false
-    local Player = game.Players.LocalPlayer
     
-    -- METHOD 1: Try to find and click Kitsune button in UI
+    -- METHOD 1: Press key 2 (primary method)
     pcall(function()
-        print("🔍 Searching UI for Kitsune button...")
-        local PlayerGui = Player:FindFirstChild("PlayerGui")
-        if PlayerGui then
-            local KitsuneBtn = nil
+        print("⚠️ Pressing key 2 to equip Kitsune...")
+        local VIM = game:GetService("VirtualInputManager")
+        
+        -- Try multiple variations of keypress
+        for i = 1, 5 do
+            -- Method A: KeyCode.Two
+            VIM:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+            task.wait(0.05)
+            VIM:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
+            task.wait(0.05)
             
-            -- Search recursively for Kitsune button
-            local function searchUI(parent)
-                for _, child in pairs(parent:GetChildren()) do
-                    -- Check for TextButton or ImageButton
-                    if child:IsA("TextButton") or child:IsA("ImageButton") then
-                        -- Check by name
-                        if child.Name and string.lower(child.Name):find("kitsune") then
-                            KitsuneBtn = child
-                            return true
+            -- Method B: KeyCode.Key2 (alternative)
+            VIM:SendKeyEvent(true, Enum.KeyCode.Key2, false, game)
+            task.wait(0.05)
+            VIM:SendKeyEvent(false, Enum.KeyCode.Key2, false, game)
+            task.wait(0.05)
+            
+            -- Check if equipped after each attempt
+            task.wait(0.1)
+            if IsKitsuneEquipped() then
+                print("✅ Kitsune equipped with key 2 on attempt " .. i)
+                success = true
+                return
+            end
+        end
+        
+        -- If still not equipped, try holding the key longer
+        if not success then
+            print("⚠️ Trying hold key 2...")
+            VIM:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+            task.wait(0.3)
+            VIM:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
+            task.wait(0.2)
+            
+            if IsKitsuneEquipped() then
+                print("✅ Kitsune equipped with hold key 2")
+                success = true
+                return
+            end
+        end
+    end)
+    
+    -- METHOD 2: Try to find and click Kitsune button in UI
+    if not success then
+        pcall(function()
+            print("🔍 Searching UI for Kitsune button...")
+            local Player = game.Players.LocalPlayer
+            local PlayerGui = Player:FindFirstChild("PlayerGui")
+            if PlayerGui then
+                local KitsuneBtn = nil
+                
+                local function searchUI(parent)
+                    for _, child in pairs(parent:GetChildren()) do
+                        if child:IsA("TextButton") or child:IsA("ImageButton") then
+                            if child.Name and string.lower(child.Name):find("kitsune") then
+                                KitsuneBtn = child
+                                return true
+                            end
+                            if child.Text and string.lower(child.Text):find("kitsune") then
+                                KitsuneBtn = child
+                                return true
+                            end
                         end
-                        -- Check by text
-                        if child.Text and string.lower(child.Text):find("kitsune") then
-                            KitsuneBtn = child
-                            return true
-                        end
-                        -- Check by tooltip or other properties
-                        if child.Tooltip and string.lower(child.Tooltip):find("kitsune") then
-                            KitsuneBtn = child
-                            return true
-                        end
-                    end
-                    -- Check for Frame or other containers that might have Kitsune
-                    if child:IsA("Frame") or child:IsA("ScrollingFrame") then
                         if searchUI(child) then
                             return true
                         end
                     end
+                    return false
                 end
-                return false
-            end
-            
-            searchUI(PlayerGui)
-            
-            if KitsuneBtn then
-                print("✅ Found Kitsune button: " .. KitsuneBtn.Name)
-                -- Try multiple ways to click
-                KitsuneBtn:Activate()
-                task.wait(0.2)
-                KitsuneBtn:Click()
-                task.wait(0.2)
-                print("✅ Clicked Kitsune button!")
-                success = true
-                return
-            else
-                print("❌ Kitsune button not found in UI")
-            end
-        else
-            print("❌ PlayerGui not found")
-        end
-    end)
-    
-    -- METHOD 2: Press key 2 (or whichever key equips Kitsune)
-    if not success then
-        pcall(function()
-            print("⚠️ Trying keypress method...")
-            local VIM = game:GetService("VirtualInputManager")
-            
-            -- Try both Key2 and Two
-            for i = 1, 3 do
-                VIM:SendKeyEvent(true, Enum.KeyCode.Key2, false, game)
-                task.wait(0.05)
-                VIM:SendKeyEvent(false, Enum.KeyCode.Key2, false, game)
-                task.wait(0.05)
                 
-                VIM:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
-                task.wait(0.05)
-                VIM:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
-                task.wait(0.05)
-            end
-            print("✅ Pressed keys 2 multiple times")
-            task.wait(0.3)
-            success = true
-        end)
-    end
-    
-    -- METHOD 3: Try clicking the Kitsune model in workspace (if clickable)
-    if not success then
-        pcall(function()
-            print("⚠️ Trying to find Kitsune in workspace...")
-            local kitsuneModel = workspace:FindFirstChild("Kitsune")
-            if kitsuneModel then
-                print("✅ Found Kitsune in workspace, trying to click...")
-                -- Try to click it
-                local mouse = game.Players.LocalPlayer:GetMouse()
-                if mouse then
-                    mouse:Click()
+                searchUI(PlayerGui)
+                
+                if KitsuneBtn then
+                    print("✅ Found Kitsune button: " .. KitsuneBtn.Name)
+                    KitsuneBtn:Activate()
+                    task.wait(0.2)
+                    KitsuneBtn:Click()
                     task.wait(0.3)
-                    print("✅ Clicked Kitsune in workspace!")
+                    print("✅ Clicked Kitsune button!")
                     success = true
+                    return
                 end
             end
         end)
     end
     
-    -- Verify if equipped
-    task.wait(0.5)
+    -- METHOD 3: Try using key 1 or 3 (in case it's different)
+    if not success then
+        pcall(function()
+            print("⚠️ Trying other number keys...")
+            local VIM = game:GetService("VirtualInputManager")
+            local keys = {
+                Enum.KeyCode.One, 
+                Enum.KeyCode.Three, 
+                Enum.KeyCode.Four, 
+                Enum.KeyCode.Five
+            }
+            
+            for _, key in pairs(keys) do
+                for i = 1, 3 do
+                    VIM:SendKeyEvent(true, key, false, game)
+                    task.wait(0.05)
+                    VIM:SendKeyEvent(false, key, false, game)
+                    task.wait(0.05)
+                end
+                task.wait(0.2)
+                
+                if IsKitsuneEquipped() then
+                    print("✅ Kitsune equipped with key: " .. tostring(key))
+                    success = true
+                    return
+                end
+            end
+        end)
+    end
+    
+    -- Final verification
+    task.wait(0.3)
     if IsKitsuneEquipped() then
         print("✅ Kitsune equipped successfully!")
         return true
     else
         print("❌ Failed to equip Kitsune")
-        
-        -- Final attempt: Try a different key (maybe it's 1, 3, or 4)
-        pcall(function()
-            print("🔄 Final attempt: Trying all number keys...")
-            local VIM = game:GetService("VirtualInputManager")
-            local keys = {Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Five}
-            
-            for _, key in pairs(keys) do
-                VIM:SendKeyEvent(true, key, false, game)
-                task.wait(0.1)
-                VIM:SendKeyEvent(false, key, false, game)
-                task.wait(0.1)
-                print("✅ Tried key: " .. tostring(key))
-                
-                task.wait(0.3)
-                if IsKitsuneEquipped() then
-                    print("✅ Kitsune equipped with key: " .. tostring(key))
-                    return true
-                end
-            end
-        end)
-        
-        return IsKitsuneEquipped()
+        return false
     end
 end
 
