@@ -8,8 +8,8 @@
 
 local Settings = {
     SkillKey = "R",
-    HoldDuration = 8,
-    Cooldown = 2,
+    HoldDuration = 9,
+    Cooldown = 5,
     AutoStart = true,
 }
 
