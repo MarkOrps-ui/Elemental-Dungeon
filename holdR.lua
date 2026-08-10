@@ -1,5 +1,5 @@
 -- ============================================
--- AUTO CLAW SPIN - FIXED RELEASE
+-- AUTO CLAW SPIN - CONTINUOUS LOOP FIX
 -- ============================================
 
 -- ============================================
@@ -14,7 +14,7 @@ local Settings = {
 }
 
 -- ============================================
--- 2. KEY FUNCTIONS WITH RELEASE TRACKING
+-- 2. KEY FUNCTIONS
 -- ============================================
 
 local VirtualInput = game:GetService("VirtualInputManager")
@@ -36,10 +36,8 @@ function ReleaseKey()
 end
 
 function ForceReleaseKey()
-    -- Force release using multiple methods
     IsKeyPressed = false
     pcall(function()
-        VirtualInput:SendKeyEvent(false, KeyCode, false, game)
         VirtualInput:SendKeyEvent(false, KeyCode, false, game)
         task.wait(0.05)
         VirtualInput:SendKeyEvent(false, KeyCode, false, game)
@@ -56,8 +54,8 @@ ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.Name = "AutoClawSpinGUI"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 240, 0, 200)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -100)
+Frame.Size = UDim2.new(0, 240, 0, 210)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -105)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Frame.BackgroundTransparency = 0.1
 Frame.BorderSizePixel = 0
@@ -84,12 +82,13 @@ Status.Parent = Frame
 local DurationDisplay = Instance.new("TextLabel")
 DurationDisplay.Size = UDim2.new(1, 0, 0, 25)
 DurationDisplay.Position = UDim2.new(0, 0, 0, 55)
-DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s"
+DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
 DurationDisplay.TextScaled = true
 DurationDisplay.BackgroundTransparency = 1
 DurationDisplay.TextColor3 = Color3.fromRGB(200, 200, 100)
 DurationDisplay.Parent = Frame
 
+-- Toggle Button
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 80, 0, 30)
 ToggleBtn.Position = UDim2.new(0.5, -40, 0, 85)
@@ -132,40 +131,54 @@ DurationMinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 DurationMinusBtn.BorderSizePixel = 0
 DurationMinusBtn.Parent = Frame
 
+-- Cooldown Buttons
+local CooldownBtn = Instance.new("TextButton")
+CooldownBtn.Size = UDim2.new(0, 50, 0, 25)
+CooldownBtn.Position = UDim2.new(0.35, 0, 0, 180)
+CooldownBtn.Text = "+1s CD"
+CooldownBtn.TextScaled = true
+CooldownBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+CooldownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CooldownBtn.BorderSizePixel = 0
+CooldownBtn.Parent = Frame
+
+local CooldownMinusBtn = Instance.new("TextButton")
+CooldownMinusBtn.Size = UDim2.new(0, 50, 0, 25)
+CooldownMinusBtn.Position = UDim2.new(0.6, 0, 0, 180)
+CooldownMinusBtn.Text = "-1s CD"
+CooldownMinusBtn.TextScaled = true
+CooldownMinusBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+CooldownMinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CooldownMinusBtn.BorderSizePixel = 0
+CooldownMinusBtn.Parent = Frame
+
 -- ============================================
--- 4. MAIN LOOP (WITH PROPER RELEASE)
+-- 4. MAIN LOOP (FIXED - CONTINUOUS)
 -- ============================================
 
 local isRunning = false
 local LoopTask = nil
-local CurrentHoldTask = nil
-
-function StopCurrentHold()
-    -- Stop any ongoing hold
-    if CurrentHoldTask then
-        task.cancel(CurrentHoldTask)
-        CurrentHoldTask = nil
-    end
-    -- Force release the key
-    ForceReleaseKey()
-    Status.Text = "Status: Released"
-end
+local HoldTask = nil
+local IsHolding = false
 
 function PerformHold(Duration)
-    return task.spawn(function()
+    if IsHolding then return end
+    IsHolding = true
+    
+    task.spawn(function()
         PressKey()
         Status.Text = "🌀 Holding R... " .. Duration .. "s"
+        print("🌀 Holding R for " .. Duration .. "s")
         
         local StartTime = tick()
         while tick() - StartTime < Duration do
             if not isRunning then
-                -- Script was stopped, release immediately
                 ReleaseKey()
+                IsHolding = false
                 Status.Text = "Status: Stopped"
                 return
             end
             task.wait(0.05)
-            -- Keep-alive
             if IsKeyPressed then
                 pcall(function()
                     VirtualInput:SendKeyEvent(true, KeyCode, false, game)
@@ -173,9 +186,10 @@ function PerformHold(Duration)
             end
         end
         
-        -- Release after duration
         ReleaseKey()
+        IsHolding = false
         Status.Text = "✅ Hold complete - " .. Settings.Cooldown .. "s cooldown"
+        print("✅ Hold complete, cooldown " .. Settings.Cooldown .. "s")
     end)
 end
 
@@ -188,16 +202,15 @@ function StartLoop()
     
     -- Ensure key is released
     ForceReleaseKey()
+    IsHolding = false
     
     isRunning = true
-    Status.Text = "Status: ON"
+    Status.Text = "Status: ON - Searching for mobs..."
     ToggleBtn.Text = "STOP"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
     
     LoopTask = task.spawn(function()
         while isRunning do
-            task.wait(0.3)
-            
             -- Check character
             local Character = game.Players.LocalPlayer.Character
             if not Character then
@@ -237,13 +250,25 @@ function StartLoop()
             
             if HasTarget and isRunning then
                 -- Perform the hold
-                CurrentHoldTask = PerformHold(Settings.HoldDuration)
-                task.wait(CurrentHoldTask) -- Wait for hold to complete
-                CurrentHoldTask = nil
+                Status.Text = "🎯 Target found! Holding R..."
+                PerformHold(Settings.HoldDuration)
                 
-                -- Cooldown
+                -- Wait for hold to complete (track it)
+                while IsHolding and isRunning do
+                    task.wait(0.1)
+                end
+                
+                -- Cooldown after hold completes
                 if isRunning then
-                    task.wait(Settings.Cooldown)
+                    Status.Text = "⏳ Cooldown... (" .. Settings.Cooldown .. "s)"
+                    print("⏳ Cooldown " .. Settings.Cooldown .. "s")
+                    
+                    local CooldownStart = tick()
+                    while tick() - CooldownStart < Settings.Cooldown and isRunning do
+                        task.wait(0.1)
+                        local Remaining = math.ceil(Settings.Cooldown - (tick() - CooldownStart))
+                        Status.Text = "⏳ Cooldown... " .. Remaining .. "s remaining"
+                    end
                 end
             else
                 Status.Text = "⏳ Waiting for mobs..."
@@ -253,9 +278,11 @@ function StartLoop()
         
         -- Loop ended - ensure key is released
         ForceReleaseKey()
+        IsHolding = false
         Status.Text = "Status: OFF"
         ToggleBtn.Text = "START"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+        print("🛑 Loop stopped")
     end)
 end
 
@@ -268,12 +295,14 @@ function StopLoop()
         LoopTask = nil
     end
     
-    -- Stop current hold and release key
-    StopCurrentHold()
+    -- Release key
+    ForceReleaseKey()
+    IsHolding = false
     
     Status.Text = "Status: OFF"
     ToggleBtn.Text = "START"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+    print("🛑 Stopped")
 end
 
 -- ============================================
@@ -290,9 +319,10 @@ end)
 
 ReleaseBtn.MouseButton1Click:Connect(function()
     print("🔄 Emergency Release!")
-    StopCurrentHold()
+    ForceReleaseKey()
+    IsHolding = false
     Status.Text = "🔄 Key Released!"
-    task.wait(1)
+    task.wait(0.5)
     if isRunning then
         Status.Text = "Status: ON - Ready"
     else
@@ -302,23 +332,39 @@ end)
 
 DurationBtn.MouseButton1Click:Connect(function()
     Settings.HoldDuration = Settings.HoldDuration + 1
-    DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s"
+    DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
     print("⏱️ Hold duration: " .. Settings.HoldDuration .. "s")
 end)
 
 DurationMinusBtn.MouseButton1Click:Connect(function()
     if Settings.HoldDuration > 1 then
         Settings.HoldDuration = Settings.HoldDuration - 1
-        DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s"
+        DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
         print("⏱️ Hold duration: " .. Settings.HoldDuration .. "s")
     end
 end)
 
+CooldownBtn.MouseButton1Click:Connect(function()
+    Settings.Cooldown = Settings.Cooldown + 1
+    DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+    print("⏱️ Cooldown: " .. Settings.Cooldown .. "s")
+end)
+
+CooldownMinusBtn.MouseButton1Click:Connect(function()
+    if Settings.Cooldown > 0 then
+        Settings.Cooldown = Settings.Cooldown - 1
+        DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+        print("⏱️ Cooldown: " .. Settings.Cooldown .. "s")
+    end
+end)
+
 -- ============================================
--- 6. KEYBIND (Press 'H' to toggle)
+-- 6. KEYBINDS
 -- ============================================
 
 local UserInputService = game:GetService("UserInputService")
+
+-- 'H' to toggle
 UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.H then
         if isRunning then
@@ -329,11 +375,19 @@ UserInputService.InputBegan:Connect(function(Input, Processed)
     end
 end)
 
--- Emergency keybind: Press 'K' to force release R
+-- 'K' to emergency release
 UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.K then
         print("🔄 Emergency Release (K pressed)!")
-        StopCurrentHold()
+        ForceReleaseKey()
+        IsHolding = false
+        Status.Text = "🔄 Key Released!"
+        task.wait(0.5)
+        if isRunning then
+            Status.Text = "Status: ON - Ready"
+        else
+            Status.Text = "Status: OFF"
+        end
     end
 end)
 
@@ -376,10 +430,9 @@ Frame.InputChanged:Connect(function(Input)
 end)
 
 -- ============================================
--- 9. CLEANUP ON SCRIPT STOP
+-- 9. CLEANUP
 -- ============================================
 
--- Ensure R is released if script is stopped
 game:GetService("RunService").Heartbeat:Connect(function()
     if not isRunning and IsKeyPressed then
         ForceReleaseKey()
@@ -387,7 +440,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
 end)
 
 print("🌀 Auto Claw Spin Script Loaded!")
-print("📌 Hold Duration: " .. Settings.HoldDuration .. "s")
+print("📌 Hold: " .. Settings.HoldDuration .. "s | Cooldown: " .. Settings.Cooldown .. "s")
 print("📌 Press 'H' to toggle ON/OFF")
 print("📌 Press 'K' for EMERGENCY RELEASE")
-print("📌 Click 'RELEASE R' button if key gets stuck")
+print("📌 Use +/- buttons to adjust times")
