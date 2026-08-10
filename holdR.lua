@@ -9,7 +9,7 @@
 local Settings = {
     SkillKey = "R",
     Method = "Tap",          -- "Hold", "Tap", "Spam", "ClickAndHold"
-    HoldDuration = 0.5,      -- For Hold method
+    HoldDuration = 8,      -- For Hold method
     TapCount = 3,            -- For Spam method (number of taps)
     Cooldown = 5,            -- Wait between activations (seconds)
     AutoStart = true,
