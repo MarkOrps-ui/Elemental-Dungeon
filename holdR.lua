@@ -11,7 +11,7 @@ local Settings = {
     HoldDuration = 10,
     Cooldown = 6,
     AutoStart = true,
-    HotbarSlot = 2,          -- Kitsune is in slot 2
+    HotbarSlot = 1,          -- Kitsune is in slot 2
 }
 
 -- ============================================
