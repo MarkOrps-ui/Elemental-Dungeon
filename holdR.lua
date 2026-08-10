@@ -6,8 +6,8 @@
 -- SETTINGS (Change these)
 -- ============================================
 
-local HoldDuration = 8      -- How long to hold R (seconds)
-local Cooldown = 2          -- Wait between holds (seconds)
+local HoldDuration = 10      -- How long to hold R (seconds)
+local Cooldown = 6          -- Wait between holds (seconds)
 
 -- ============================================
 -- KEY FUNCTIONS
