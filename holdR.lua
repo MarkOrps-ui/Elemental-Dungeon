@@ -1,47 +1,66 @@
 -- ============================================
--- STANDALONE AUTO HOLD R SCRIPT
--- Works alongside any other script
+-- AUTO CLAW SPIN (R Key) - FIXED
 -- ============================================
 
 -- ============================================
--- 1. SETTINGS (You can change these)
+-- 1. SETTINGS
 -- ============================================
 
 local Settings = {
-    HoldDuration = 5,      -- How long to hold R (seconds)
-    Cooldown = 8,          -- Wait time between holds (seconds)
-    AutoStart = true,      -- Auto start when script runs
-    OnlyInDungeon = true,  -- Only work in dungeon (not lobby)
+    SkillKey = "R",
+    Method = "Tap",          -- "Hold", "Tap", "Spam", "ClickAndHold"
+    HoldDuration = 0.5,      -- For Hold method
+    TapCount = 3,            -- For Spam method (number of taps)
+    Cooldown = 5,            -- Wait between activations (seconds)
+    AutoStart = true,
 }
 
 -- ============================================
--- 2. SIMPLE GUI (Optional - shows status)
+-- 2. GUI
 -- ============================================
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.Name = "AutoHoldRGUI"
+ScreenGui.Name = "AutoClawSpinGUI"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 100)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -50)
+Frame.Size = UDim2.new(0, 240, 0, 180)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -90)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Frame.BackgroundTransparency = 0.1
 Frame.BorderSizePixel = 0
 Frame.Parent = ScreenGui
 
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Position = UDim2.new(0, 0, 0, 2)
+Title.Text = "🌀 Auto Claw Spin"
+Title.TextScaled = true
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 200, 100)
+Title.Parent = Frame
+
 local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 0, 30)
-Status.Position = UDim2.new(0, 0, 0, 5)
-Status.Text = "✈️ Auto Hold R: OFF"
+Status.Size = UDim2.new(1, 0, 0, 25)
+Status.Position = UDim2.new(0, 0, 0, 30)
+Status.Text = "Status: OFF"
 Status.TextScaled = true
 Status.BackgroundTransparency = 1
-Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+Status.TextColor3 = Color3.fromRGB(200, 200, 200)
 Status.Parent = Frame
+
+local MethodDisplay = Instance.new("TextLabel")
+MethodDisplay.Size = UDim2.new(1, 0, 0, 25)
+MethodDisplay.Position = UDim2.new(0, 0, 0, 55)
+MethodDisplay.Text = "Method: " .. Settings.Method
+MethodDisplay.TextScaled = true
+MethodDisplay.BackgroundTransparency = 1
+MethodDisplay.TextColor3 = Color3.fromRGB(200, 200, 100)
+MethodDisplay.Parent = Frame
 
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 80, 0, 30)
-ToggleBtn.Position = UDim2.new(0.5, -40, 0, 40)
+ToggleBtn.Position = UDim2.new(0.5, -40, 0, 85)
 ToggleBtn.Text = "START"
 ToggleBtn.TextScaled = true
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
@@ -49,50 +68,100 @@ ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.BorderSizePixel = 0
 ToggleBtn.Parent = Frame
 
-local isRunning = false
-local HoldingR = false
+-- Method Switch Button
+local MethodBtn = Instance.new("TextButton")
+MethodBtn.Size = UDim2.new(0, 120, 0, 25)
+MethodBtn.Position = UDim2.new(0.5, -60, 0, 120)
+MethodBtn.Text = "Switch Method"
+MethodBtn.TextScaled = true
+MethodBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+MethodBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MethodBtn.BorderSizePixel = 0
+MethodBtn.Parent = Frame
 
 -- ============================================
--- 3. HOLD R FUNCTION
+-- 3. KEY FUNCTIONS
 -- ============================================
 
-function HoldKeyR(Duration)
-    local VirtualInput = game:GetService("VirtualInputManager")
-    local KeyCode = Enum.KeyCode.R
-    
-    -- Press R down
+local VirtualInput = game:GetService("VirtualInputManager")
+
+function PressKey(Key)
+    local KeyCode = Enum.KeyCode[Key]
+    if not KeyCode then return end
     VirtualInput:SendKeyEvent(true, KeyCode, false, game)
-    
-    -- Hold for duration
-    local StartTime = tick()
-    while tick() - StartTime < Duration do
-        task.wait(0.05)
-        VirtualInput:SendKeyEvent(true, KeyCode, false, game)
-    end
-    
-    -- Release R
+end
+
+function ReleaseKey(Key)
+    local KeyCode = Enum.KeyCode[Key]
+    if not KeyCode then return end
+    VirtualInput:SendKeyEvent(false, KeyCode, false, game)
+end
+
+function TapKey(Key)
+    local KeyCode = Enum.KeyCode[Key]
+    if not KeyCode then return end
+    VirtualInput:SendKeyEvent(true, KeyCode, false, game)
+    task.wait(0.05)
     VirtualInput:SendKeyEvent(false, KeyCode, false, game)
 end
 
 -- ============================================
--- 4. AUTO HOLD LOOP
+-- 4. ACTIVATION METHODS
 -- ============================================
 
-function StartHoldLoop()
-    if HoldingR then return end
-    HoldingR = true
+local Methods = {"Hold", "Tap", "Spam", "ClickAndHold"}
+local MethodIndex = 1
+
+function ActivateSkill(Key)
+    local method = Settings.Method
+    
+    if method == "Hold" then
+        -- Hold R for duration
+        PressKey(Key)
+        task.wait(Settings.HoldDuration)
+        ReleaseKey(Key)
+        
+    elseif method == "Tap" then
+        -- Quick tap
+        TapKey(Key)
+        
+    elseif method == "Spam" then
+        -- Rapid taps
+        for i = 1, Settings.TapCount do
+            TapKey(Key)
+            task.wait(0.1)
+        end
+        
+    elseif method == "ClickAndHold" then
+        -- Press R, then click, then release
+        PressKey(Key)
+        task.wait(0.1)
+        -- Simulate click
+        local VirtualUser = game:GetService("VirtualUser")
+        pcall(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton1(Vector2.new(0, 0))
+        end)
+        task.wait(0.3)
+        ReleaseKey(Key)
+    end
+end
+
+-- ============================================
+-- 5. AUTO LOOP
+-- ============================================
+
+local isRunning = false
+local Holding = false
+
+function StartLoop()
+    if Holding then return end
+    Holding = true
     
     task.spawn(function()
-        while HoldingR and isRunning do
-            task.wait(0.5)
+        while Holding and isRunning do
+            task.wait(0.3)
             
-            -- Check if in dungeon (not lobby)
-            if Settings.OnlyInDungeon and game.PlaceId == 10515146389 then
-                task.wait(1)
-                continue
-            end
-            
-            -- Check if character exists and is alive
             local Character = game.Players.LocalPlayer.Character
             if not Character then
                 task.wait(1)
@@ -105,7 +174,7 @@ function StartHoldLoop()
                 continue
             end
             
-            -- Check for nearby mobs
+            -- Check for mobs
             local Mobs = workspace:FindFirstChild("Mobs")
             local HasTarget = false
             
@@ -128,34 +197,32 @@ function StartHoldLoop()
             end
             
             if HasTarget then
-                -- Hold R
-                Status.Text = "✈️ Holding R... (" .. Settings.HoldDuration .. "s)"
-                HoldKeyR(Settings.HoldDuration)
+                Status.Text = "🌀 Using Claw Spin..."
+                ActivateSkill(Settings.SkillKey)
                 
-                -- Wait for cooldown
-                Status.Text = "✈️ Cooldown... (" .. Settings.Cooldown .. "s)"
+                Status.Text = "⏳ Cooldown... (" .. Settings.Cooldown .. "s)"
                 task.wait(Settings.Cooldown)
             else
-                Status.Text = "✈️ Waiting for mobs..."
+                Status.Text = "⏳ Waiting for mobs..."
                 task.wait(1)
             end
         end
         
-        Status.Text = "✈️ Auto Hold R: OFF"
-        HoldingR = false
+        Status.Text = "Status: OFF"
+        Holding = false
     end)
 end
 
-function StopHoldLoop()
+function StopLoop()
     isRunning = false
-    HoldingR = false
-    Status.Text = "✈️ Auto Hold R: OFF"
+    Holding = false
+    Status.Text = "Status: OFF"
     ToggleBtn.Text = "START"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
 end
 
 -- ============================================
--- 5. TOGGLE BUTTON
+-- 6. GUI BUTTONS
 -- ============================================
 
 ToggleBtn.MouseButton1Click:Connect(function()
@@ -164,15 +231,31 @@ ToggleBtn.MouseButton1Click:Connect(function()
     if isRunning then
         ToggleBtn.Text = "STOP"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-        Status.Text = "✈️ Auto Hold R: ON"
-        StartHoldLoop()
+        Status.Text = "Status: ON - " .. Settings.Method
+        StartLoop()
     else
-        StopHoldLoop()
+        StopLoop()
+    end
+end)
+
+MethodBtn.MouseButton1Click:Connect(function()
+    MethodIndex = MethodIndex + 1
+    if MethodIndex > #Methods then MethodIndex = 1 end
+    Settings.Method = Methods[MethodIndex]
+    MethodDisplay.Text = "Method: " .. Settings.Method
+    
+    print("🔄 Changed to method: " .. Settings.Method)
+    
+    -- If running, restart
+    if isRunning then
+        Holding = false
+        task.wait(0.5)
+        StartLoop()
     end
 end)
 
 -- ============================================
--- 6. KEYBIND (Press 'H' to toggle)
+-- 7. KEYBIND (Press 'H' to toggle)
 -- ============================================
 
 local UserInputService = game:GetService("UserInputService")
@@ -183,29 +266,29 @@ UserInputService.InputBegan:Connect(function(Input, Processed)
         if isRunning then
             ToggleBtn.Text = "STOP"
             ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-            Status.Text = "✈️ Auto Hold R: ON"
-            StartHoldLoop()
+            Status.Text = "Status: ON - " .. Settings.Method
+            StartLoop()
         else
-            StopHoldLoop()
+            StopLoop()
         end
     end
 end)
 
 -- ============================================
--- 7. AUTO START (If enabled)
+-- 8. AUTO START
 -- ============================================
 
 if Settings.AutoStart then
-    task.wait(2) -- Wait for other scripts to load
+    task.wait(2)
     isRunning = true
     ToggleBtn.Text = "STOP"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-    Status.Text = "✈️ Auto Hold R: ON"
-    StartHoldLoop()
+    Status.Text = "Status: ON - " .. Settings.Method
+    StartLoop()
 end
 
 -- ============================================
--- 8. DRAG GUI
+-- 9. DRAG GUI
 -- ============================================
 
 local Dragging = false
@@ -234,11 +317,11 @@ Frame.InputChanged:Connect(function(Input)
 end)
 
 -- ============================================
--- 9. PRINT STATUS
+-- 10. PRINT STATUS
 -- ============================================
 
-print("✈️ Auto Hold R Script Loaded!")
-print("📌 Press 'H' to toggle Auto Hold R")
-print("📌 Click START/STOP button in the GUI")
-print("📌 Hold Duration: " .. Settings.HoldDuration .. "s")
-print("📌 Cooldown: " .. Settings.Cooldown .. "s")
+print("🌀 Auto Claw Spin Script Loaded!")
+print("📌 Key: R")
+print("📌 Methods available: Hold, Tap, Spam, ClickAndHold")
+print("📌 Click 'Switch Method' to try different activation methods")
+print("📌 Press 'H' to toggle")
