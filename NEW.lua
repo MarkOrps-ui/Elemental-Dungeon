@@ -1,59 +1,57 @@
 -- ============================================
--- CLAW SPIN - WITH KITSUNE CLICK
+-- AUTO CLAW SPIN - CONTINUOUS LOOP FIX
 -- ============================================
 
 -- ============================================
--- SETTINGS (Change these)
+-- 1. SETTINGS
 -- ============================================
 
-local HoldDuration = 8      -- How long to hold R (seconds)
-local Cooldown = 2          -- Wait between holds (seconds)
+local Settings = {
+    SkillKey = "R",
+    HoldDuration = 10,
+    Cooldown = 6,
+    AutoStart = true,
+}
 
 -- ============================================
--- KEY FUNCTIONS
+-- 2. KEY FUNCTIONS
 -- ============================================
 
 local VirtualInput = game:GetService("VirtualInputManager")
-local IsPressed = false
-
-function PressR()
-    if IsPressed then return end
-    VirtualInput:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-    IsPressed = true
-end
-
-function ReleaseR()
-    if not IsPressed then return end
-    VirtualInput:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-    IsPressed = false
-end
-
-function ForceReleaseR()
-    IsPressed = false
-    pcall(function()
-        VirtualInput:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-        task.wait(0.05)
-        VirtualInput:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-    end)
-end
+local KeyCode = Enum.KeyCode.R
+local IsKeyPressed = false
 
 -- ============================================
--- CLICK KITSUNE BUTTON
+-- KITSUNE EQUIP FUNCTIONS (UPDATED TO VER2)
 -- ============================================
 
-function ClickKitsune()
-    print("🔄 Trying to click Kitsune button...")
-    Status.Text = "🔧 Kitsune"
+local function IsKitsuneEquipped()
+    local Character = game.Players.LocalPlayer.Character
+    return Character and Character:FindFirstChild("Kitsune") ~= nil
+end
+
+local function EquipKitsune()
+    print("🔄 Trying to equip Kitsune...")
+    Status.Text = "🔧 Equipping Kitsune..."
     Status.TextColor3 = Color3.fromRGB(255, 200, 100)
     
+    -- First check if already equipped
+    if IsKitsuneEquipped() then
+        print("✅ Kitsune already equipped")
+        Status.Text = "✅ Kitsune already equipped"
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        return true
+    end
+    
+    local success = false
+    
     pcall(function()
-        -- Find the Kitsune button in the UI
+        -- Method 1: Find and click UI button
         local PlayerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
         if PlayerGui then
-            -- Try to find Kitsune button
             local KitsuneBtn = nil
             
-            -- Method 1: Search all UI for Kitsune
+            -- Search recursively for Kitsune button
             local function searchUI(parent)
                 for _, child in pairs(parent:GetChildren()) do
                     if child:IsA("TextButton") or child:IsA("ImageButton") then
@@ -80,145 +78,248 @@ function ClickKitsune()
                 KitsuneBtn:Activate()
                 task.wait(0.3)
                 print("✅ Clicked Kitsune!")
-                Status.Text = "✅ Kitsune"
+                Status.Text = "✅ Kitsune equipped!"
                 Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-            else
-                print("❌ Kitsune button not found, trying hotkey 2...")
-                -- Fallback: press 2
-                local VirtualInput = game:GetService("VirtualInputManager")
-                VirtualInput:SendKeyEvent(true, Enum.KeyCode.Key2, false, game)
-                task.wait(0.05)
-                VirtualInput:SendKeyEvent(false, Enum.KeyCode.Key2, false, game)
-                print("✅ Pressed key 2")
-                Status.Text = "✅ Key 2"
-                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+                success = true
+                return
             end
+        end
+        
+        -- Method 2: Fallback to keypress
+        if not success then
+            print("⚠️ Button not found, using keypress 2...")
+            local VIM = game:GetService("VirtualInputManager")
+            VIM:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+            task.wait(0.05)
+            VIM:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
+            task.wait(0.1)
+            VIM:SendKeyEvent(true, Enum.KeyCode.Two, false, game)
+            task.wait(0.05)
+            VIM:SendKeyEvent(false, Enum.KeyCode.Two, false, game)
+            print("✅ Pressed key 2 twice")
+            Status.Text = "✅ Kitsune equipped!"
+            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            success = true
         end
     end)
     
-    task.wait(0.5)
+    if success then
+        print("✅ Kitsune equipped successfully")
+        return true
+    else
+        Status.Text = "❌ Failed to equip Kitsune"
+        Status.TextColor3 = Color3.fromRGB(255, 50, 50)
+        print("❌ Failed to equip Kitsune")
+        return false
+    end
+end
+
+function PressKey()
+    if IsKeyPressed then return end
+    VirtualInput:SendKeyEvent(true, KeyCode, false, game)
+    IsKeyPressed = true
+    print("🔽 R Pressed")
+end
+
+function ReleaseKey()
+    if not IsKeyPressed then return end
+    VirtualInput:SendKeyEvent(false, KeyCode, false, game)
+    IsKeyPressed = false
+    print("🔼 R Released")
+end
+
+function ForceReleaseKey()
+    IsKeyPressed = false
+    pcall(function()
+        VirtualInput:SendKeyEvent(false, KeyCode, false, game)
+        task.wait(0.05)
+        VirtualInput:SendKeyEvent(false, KeyCode, false, game)
+    end)
+    print("🔄 Force released R")
 end
 
 -- ============================================
--- GUI
+-- 3. GUI
 -- ============================================
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.Name = "ClawSpinGUI"
+ScreenGui.Name = "AutoClawSpinGUI"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 160, 0, 60)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -30)
+Frame.Size = UDim2.new(0, 240, 0, 210)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -105)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-Frame.BackgroundTransparency = 0.2
+Frame.BackgroundTransparency = 0.1
 Frame.BorderSizePixel = 0
 Frame.Parent = ScreenGui
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 8)
-Corner.Parent = Frame
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Position = UDim2.new(0, 0, 0, 2)
+Title.Text = "🌀 Auto Claw Spin"
+Title.TextScaled = true
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 200, 100)
+Title.Parent = Frame
 
 local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 1, 0)
-Status.Text = "🌀 OFF"
+Status.Size = UDim2.new(1, 0, 0, 25)
+Status.Position = UDim2.new(0, 0, 0, 30)
+Status.Text = "Status: OFF"
 Status.TextScaled = true
 Status.BackgroundTransparency = 1
-Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+Status.TextColor3 = Color3.fromRGB(200, 200, 200)
 Status.Parent = Frame
 
--- Toggle click on the frame
-Frame.MouseButton1Click:Connect(function()
-    if isRunning then
-        StopLoop()
-    else
-        StartLoop()
-    end
-end)
+local DurationDisplay = Instance.new("TextLabel")
+DurationDisplay.Size = UDim2.new(1, 0, 0, 25)
+DurationDisplay.Position = UDim2.new(0, 0, 0, 55)
+DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+DurationDisplay.TextScaled = true
+DurationDisplay.BackgroundTransparency = 1
+DurationDisplay.TextColor3 = Color3.fromRGB(200, 200, 100)
+DurationDisplay.Parent = Frame
+
+-- Toggle Button
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 80, 0, 30)
+ToggleBtn.Position = UDim2.new(0.5, -40, 0, 85)
+ToggleBtn.Text = "START"
+ToggleBtn.TextScaled = true
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.BorderSizePixel = 0
+ToggleBtn.Parent = Frame
+
+-- Emergency Release Button
+local ReleaseBtn = Instance.new("TextButton")
+ReleaseBtn.Size = UDim2.new(0, 120, 0, 25)
+ReleaseBtn.Position = UDim2.new(0.5, -60, 0, 120)
+ReleaseBtn.Text = "🔄 RELEASE R"
+ReleaseBtn.TextScaled = true
+ReleaseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ReleaseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ReleaseBtn.BorderSizePixel = 0
+ReleaseBtn.Parent = Frame
+
+-- Duration Buttons
+local DurationBtn = Instance.new("TextButton")
+DurationBtn.Size = UDim2.new(0, 60, 0, 25)
+DurationBtn.Position = UDim2.new(0.1, 0, 0, 150)
+DurationBtn.Text = "+1s"
+DurationBtn.TextScaled = true
+DurationBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+DurationBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DurationBtn.BorderSizePixel = 0
+DurationBtn.Parent = Frame
+
+local DurationMinusBtn = Instance.new("TextButton")
+DurationMinusBtn.Size = UDim2.new(0, 60, 0, 25)
+DurationMinusBtn.Position = UDim2.new(0.6, 0, 0, 150)
+DurationMinusBtn.Text = "-1s"
+DurationMinusBtn.TextScaled = true
+DurationMinusBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+DurationMinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DurationMinusBtn.BorderSizePixel = 0
+DurationMinusBtn.Parent = Frame
+
+-- Cooldown Buttons
+local CooldownBtn = Instance.new("TextButton")
+CooldownBtn.Size = UDim2.new(0, 50, 0, 25)
+CooldownBtn.Position = UDim2.new(0.35, 0, 0, 180)
+CooldownBtn.Text = "+1s CD"
+CooldownBtn.TextScaled = true
+CooldownBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+CooldownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CooldownBtn.BorderSizePixel = 0
+CooldownBtn.Parent = Frame
+
+local CooldownMinusBtn = Instance.new("TextButton")
+CooldownMinusBtn.Size = UDim2.new(0, 50, 0, 25)
+CooldownMinusBtn.Position = UDim2.new(0.6, 0, 0, 180)
+CooldownMinusBtn.Text = "-1s CD"
+CooldownMinusBtn.TextScaled = true
+CooldownMinusBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+CooldownMinusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CooldownMinusBtn.BorderSizePixel = 0
+CooldownMinusBtn.Parent = Frame
 
 -- ============================================
--- MAIN LOOP
+-- 4. MAIN LOOP (FIXED - CONTINUOUS)
 -- ============================================
 
 local isRunning = false
 local LoopTask = nil
+local HoldTask = nil
 local IsHolding = false
 
-function HoldR()
+function PerformHold(Duration)
     if IsHolding then return end
     IsHolding = true
     
     task.spawn(function()
-        PressR()
-        Status.Text = "🌀 HOLDING"
-        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        PressKey()
+        Status.Text = "🌀 Holding R... " .. Duration .. "s"
+        print("🌀 Holding R for " .. Duration .. "s")
         
         local StartTime = tick()
-        while tick() - StartTime < HoldDuration do
+        while tick() - StartTime < Duration do
             if not isRunning then
-                ReleaseR()
+                ReleaseKey()
                 IsHolding = false
-                Status.Text = "🌀 OFF"
-                Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+                Status.Text = "Status: Stopped"
                 return
             end
             task.wait(0.05)
-            if IsPressed then
+            if IsKeyPressed then
                 pcall(function()
-                    VirtualInput:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                    VirtualInput:SendKeyEvent(true, KeyCode, false, game)
                 end)
             end
         end
         
-        ReleaseR()
+        ReleaseKey()
         IsHolding = false
-        Status.Text = "🌀 COOLDOWN"
-        Status.TextColor3 = Color3.fromRGB(255, 200, 100)
-        
-        local CooldownStart = tick()
-        while tick() - CooldownStart < Cooldown and isRunning do
-            task.wait(0.1)
-            local Remaining = math.ceil(Cooldown - (tick() - CooldownStart))
-            Status.Text = "🌀 " .. Remaining .. "s"
-            Status.TextColor3 = Color3.fromRGB(255, 200, 100)
-        end
-        
-        if isRunning then
-            Status.Text = "🌀 READY"
-            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-        end
+        Status.Text = "✅ Hold complete - " .. Settings.Cooldown .. "s cooldown"
+        print("✅ Hold complete, cooldown " .. Settings.Cooldown .. "s")
     end)
 end
 
 function StartLoop()
+    -- Stop any existing loop
     if LoopTask then
         task.cancel(LoopTask)
         LoopTask = nil
     end
     
-    ForceReleaseR()
+    -- Ensure key is released
+    ForceReleaseKey()
     IsHolding = false
-    isRunning = true
-    Status.Text = "🌀 ON"
-    Status.TextColor3 = Color3.fromRGB(100, 255, 100)
     
-    -- Click Kitsune on start
-    ClickKitsune()
+    isRunning = true
+    Status.Text = "Status: ON - Searching for mobs..."
+    ToggleBtn.Text = "STOP"
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
     
     LoopTask = task.spawn(function()
         while isRunning do
+            -- Check character
             local Character = game.Players.LocalPlayer.Character
             if not Character then
+                Status.Text = "⏳ Waiting for character..."
                 task.wait(1)
                 continue
             end
             
             local Humanoid = Character:FindFirstChild("Humanoid")
             if not Humanoid or Humanoid.Health <= 0 then
+                Status.Text = "💀 Dead - Waiting..."
                 task.wait(2)
                 continue
             end
             
+            -- Check for mobs
             local Mobs = workspace:FindFirstChild("Mobs")
             local HasTarget = false
             
@@ -241,43 +342,129 @@ function StartLoop()
             end
             
             if HasTarget and isRunning then
-                HoldR()
+                -- Equip Kitsune if not already equipped (UPDATED TO VER2)
+                if not IsKitsuneEquipped() then
+                    Status.Text = "🦊 Equipping Kitsune..."
+                    EquipKitsune()
+                    task.wait(0.25)
+                end
+            
+                -- Perform the hold
+                Status.Text = "🎯 Target found! Holding R..."
+                PerformHold(Settings.HoldDuration)
+                
+                -- Wait for hold to complete (track it)
                 while IsHolding and isRunning do
                     task.wait(0.1)
                 end
+                
+                -- Cooldown after hold completes
+                if isRunning then
+                    Status.Text = "⏳ Cooldown... (" .. Settings.Cooldown .. "s)"
+                    print("⏳ Cooldown " .. Settings.Cooldown .. "s")
+                    
+                    local CooldownStart = tick()
+                    while tick() - CooldownStart < Settings.Cooldown and isRunning do
+                        task.wait(0.1)
+                        local Remaining = math.ceil(Settings.Cooldown - (tick() - CooldownStart))
+                        Status.Text = "⏳ Cooldown... " .. Remaining .. "s remaining"
+                    end
+                end
             else
-                Status.Text = "🌀 WAITING"
-                Status.TextColor3 = Color3.fromRGB(255, 255, 100)
+                Status.Text = "⏳ Waiting for mobs..."
                 task.wait(1)
             end
         end
         
-        ForceReleaseR()
+        -- Loop ended - ensure key is released
+        ForceReleaseKey()
         IsHolding = false
-        Status.Text = "🌀 OFF"
-        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Status.Text = "Status: OFF"
+        ToggleBtn.Text = "START"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+        print("🛑 Loop stopped")
     end)
 end
 
 function StopLoop()
     isRunning = false
+    
+    -- Cancel loop task
     if LoopTask then
         task.cancel(LoopTask)
         LoopTask = nil
     end
-    ForceReleaseR()
+    
+    -- Release key
+    ForceReleaseKey()
     IsHolding = false
-    Status.Text = "🌀 OFF"
-    Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    Status.Text = "Status: OFF"
+    ToggleBtn.Text = "START"
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+    print("🛑 Stopped")
 end
 
 -- ============================================
--- KEYBINDS
+-- 5. GUI BUTTONS
+-- ============================================
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    if isRunning then
+        StopLoop()
+    else
+        StartLoop()
+    end
+end)
+
+ReleaseBtn.MouseButton1Click:Connect(function()
+    print("🔄 Emergency Release!")
+    ForceReleaseKey()
+    IsHolding = false
+    Status.Text = "🔄 Key Released!"
+    task.wait(0.5)
+    if isRunning then
+        Status.Text = "Status: ON - Ready"
+    else
+        Status.Text = "Status: OFF"
+    end
+end)
+
+DurationBtn.MouseButton1Click:Connect(function()
+    Settings.HoldDuration = Settings.HoldDuration + 1
+    DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+    print("⏱️ Hold duration: " .. Settings.HoldDuration .. "s")
+end)
+
+DurationMinusBtn.MouseButton1Click:Connect(function()
+    if Settings.HoldDuration > 1 then
+        Settings.HoldDuration = Settings.HoldDuration - 1
+        DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+        print("⏱️ Hold duration: " .. Settings.HoldDuration .. "s")
+    end
+end)
+
+CooldownBtn.MouseButton1Click:Connect(function()
+    Settings.Cooldown = Settings.Cooldown + 1
+    DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+    print("⏱️ Cooldown: " .. Settings.Cooldown .. "s")
+end)
+
+CooldownMinusBtn.MouseButton1Click:Connect(function()
+    if Settings.Cooldown > 0 then
+        Settings.Cooldown = Settings.Cooldown - 1
+        DurationDisplay.Text = "Hold: " .. Settings.HoldDuration .. "s  |  Cooldown: " .. Settings.Cooldown .. "s"
+        print("⏱️ Cooldown: " .. Settings.Cooldown .. "s")
+    end
+end)
+
+-- ============================================
+-- 6. KEYBINDS
 -- ============================================
 
 local UserInputService = game:GetService("UserInputService")
 
--- H to toggle
+-- 'H' to toggle
 UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.H then
         if isRunning then
@@ -288,37 +475,33 @@ UserInputService.InputBegan:Connect(function(Input, Processed)
     end
 end)
 
--- K to emergency release
+-- 'K' to emergency release
 UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.K then
-        ForceReleaseR()
+        print("🔄 Emergency Release (K pressed)!")
+        ForceReleaseKey()
         IsHolding = false
+        Status.Text = "🔄 Key Released!"
+        task.wait(0.5)
         if isRunning then
-            Status.Text = "🌀 RELEASED"
-            Status.TextColor3 = Color3.fromRGB(255, 100, 100)
-            task.wait(0.5)
-            Status.Text = "🌀 ON"
-            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            Status.Text = "Status: ON - Ready"
+        else
+            Status.Text = "Status: OFF"
         end
     end
 end)
 
--- 2 to manually equip Kitsune
-UserInputService.InputBegan:Connect(function(Input, Processed)
-    if not Processed and Input.KeyCode == Enum.KeyCode.Key2 then
-        ClickKitsune()
-    end
-end)
-
 -- ============================================
--- AUTO START
+-- 7. AUTO START
 -- ============================================
 
-task.wait(2)
-StartLoop()
+if Settings.AutoStart then
+    task.wait(2)
+    StartLoop()
+end
 
 -- ============================================
--- DRAG GUI
+-- 8. DRAG GUI
 -- ============================================
 
 local Dragging = false
@@ -330,6 +513,7 @@ Frame.InputBegan:Connect(function(Input)
         Dragging = true
         DragStart = Input.Position
         StartPos = Frame.Position
+        
         Input.Changed:Connect(function()
             if Input.UserInputState == Enum.UserInputState.End then
                 Dragging = false
@@ -345,9 +529,18 @@ Frame.InputChanged:Connect(function(Input)
     end
 end)
 
-print("🌀 Claw Spin Script Loaded!")
-print("📌 Click the GUI box to toggle ON/OFF")
-print("📌 Press 'H' to toggle")
-print("📌 Press 'K' to emergency release R")
-print("📌 Press '2' to manually equip Kitsune")
-print("📌 Hold: " .. HoldDuration .. "s | Cooldown: " .. Cooldown .. "s")
+-- ============================================
+-- 9. CLEANUP
+-- ============================================
+
+game:GetService("RunService").Heartbeat:Connect(function()
+    if not isRunning and IsKeyPressed then
+        ForceReleaseKey()
+    end
+end)
+
+print("🌀 Auto Claw Spin Script Loaded!")
+print("📌 Hold: " .. Settings.HoldDuration .. "s | Cooldown: " .. Settings.Cooldown .. "s")
+print("📌 Press 'H' to toggle ON/OFF")
+print("📌 Press 'K' for EMERGENCY RELEASE")
+print("📌 Use +/- buttons to adjust times")
