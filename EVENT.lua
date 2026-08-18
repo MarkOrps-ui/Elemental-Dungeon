@@ -1,5 +1,5 @@
 -- ============================================
--- SUN VS MOON - BOSS RAID AUTO JOIN
+-- SUN VS MOON - BOSS RAID AUTO JOIN (FIXED)
 -- ============================================
 
 -- ============================================
@@ -9,8 +9,8 @@
 local Settings = {
     DungeonName = "SunVsMoonEvent",
     AutoJoin = true,
-    AutoLeave = true,          -- Leave after boss is dead
-    RetryInterval = 5,         -- Check every 5 seconds
+    AutoLeave = true,
+    RetryInterval = 5,
 }
 
 -- ============================================
@@ -20,28 +20,51 @@ local Settings = {
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
 
 -- Check if in dungeon
 function IsInDungeon()
     local MapContent = workspace:FindFirstChild("MapContent")
     if MapContent then
-        return MapContent:FindFirstChild("SunVsMoonEvent") ~= nil
-    end
-    return false
-end
-
--- Check if dungeon is available (portal exists)
-function IsDungeonAvailable()
-    local MapContent = workspace:FindFirstChild("MapContent")
-    if MapContent then
-        local SunVsMoon = MapContent:FindFirstChild("SunVsMoonEvent")
-        if SunVsMoon then
-            local Portal = SunVsMoon:FindFirstChild("Portal")
-            if Portal then
+        -- Check for any dungeon indicator
+        for _, child in pairs(MapContent:GetChildren()) do
+            if child.Name:find("SunVsMoon") or child.Name:find("Event") then
                 return true
             end
         end
     end
+    return false
+end
+
+-- Check if dungeon is available (check for portal or event active)
+function IsDungeonAvailable()
+    -- Check workspace for event indicators
+    local MapContent = workspace:FindFirstChild("MapContent")
+    if MapContent then
+        for _, child in pairs(MapContent:GetChildren()) do
+            if child.Name:find("SunVsMoon") or child.Name:find("Event") then
+                -- Check if it has a portal or is active
+                local Portal = child:FindFirstChild("Portal")
+                if Portal then
+                    return true
+                end
+                -- Check if the dungeon itself exists
+                if child:FindFirstChild("Base") or child:FindFirstChild("Floor") then
+                    return true
+                end
+            end
+        end
+    end
+    
+    -- Check ReplicatedStorage for dungeon data
+    local DungeonData = ReplicatedStorage:FindFirstChild("DungeonData")
+    if DungeonData then
+        local EventData = DungeonData:FindFirstChild("SunVsMoonEvent")
+        if EventData then
+            return true
+        end
+    end
+    
     return false
 end
 
@@ -51,7 +74,6 @@ function IsBossAlive()
     if Mobs then
         for _, Mob in pairs(Mobs:GetChildren()) do
             if Mob:IsA("Model") then
-                -- Check if it's a boss (has boss in name or is large)
                 local Name = Mob.Name:lower()
                 if Name:find("boss") or Name:find("sun") or Name:find("moon") or Name:find("lunos") then
                     local Humanoid = Mob:FindFirstChild("Humanoid")
@@ -65,14 +87,6 @@ function IsBossAlive()
     return false
 end
 
--- Check if dungeon is complete (boss is dead)
-function IsDungeonComplete()
-    if IsInDungeon() then
-        return not IsBossAlive()
-    end
-    return false
-end
-
 -- Start the dungeon
 function StartDungeon()
     print("🔄 Attempting to join SunVsMoon boss raid...")
@@ -80,28 +94,36 @@ function StartDungeon()
     Status.TextColor3 = Color3.fromRGB(255, 200, 100)
     
     if not IsDungeonAvailable() then
-        print("❌ Dungeon not open yet!")
-        Status.Text = "🌙 Not open yet..."
+        print("❌ Dungeon not available!")
+        Status.Text = "🌙 Not available"
         Status.TextColor3 = Color3.fromRGB(255, 100, 100)
         return false
     end
     
     local success = false
     
-    -- Method 1: Use ReplicatedStorage
+    -- Method 1: Find and click the portal
     pcall(function()
-        local Knit = ReplicatedStorage:FindFirstChild("Packages")
-        if Knit then
-            local KnitService = Knit:FindFirstChild("Knit")
-            if KnitService then
-                local Services = KnitService:FindFirstChild("Services")
-                if Services then
-                    local DungeonService = Services:FindFirstChild("DungeonService")
-                    if DungeonService and DungeonService.RF then
-                        local StartDungeon = DungeonService.RF:FindFirstChild("StartDungeon")
-                        if StartDungeon then
-                            StartDungeon:InvokeServer("SunVsMoonEvent")
-                            print("✅ Joined boss raid!")
+        local MapContent = workspace:FindFirstChild("MapContent")
+        if MapContent then
+            for _, child in pairs(MapContent:GetChildren()) do
+                if child.Name:find("SunVsMoon") or child.Name:find("Event") then
+                    local Portal = child:FindFirstChild("Portal")
+                    if Portal then
+                        local ClickDetector = Portal:FindFirstChild("ClickDetector")
+                        if ClickDetector then
+                            ClickDetector:Click()
+                            print("✅ Clicked portal!")
+                            Status.Text = "✅ Joined!"
+                            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+                            success = true
+                            return
+                        end
+                        
+                        local Prompt = Portal:FindFirstChild("ProximityPrompt")
+                        if Prompt then
+                            fireproximityprompt(Prompt)
+                            print("✅ Fired proximity prompt!")
                             Status.Text = "✅ Joined!"
                             Status.TextColor3 = Color3.fromRGB(100, 255, 100)
                             success = true
@@ -115,32 +137,25 @@ function StartDungeon()
     
     if success then return true end
     
-    -- Method 2: Click the portal
+    -- Method 2: Use ReplicatedStorage
     pcall(function()
-        local MapContent = workspace:FindFirstChild("MapContent")
-        if MapContent then
-            local SunVsMoon = MapContent:FindFirstChild("SunVsMoonEvent")
-            if SunVsMoon then
-                local Portal = SunVsMoon:FindFirstChild("Portal")
-                if Portal then
-                    local ClickDetector = Portal:FindFirstChild("ClickDetector")
-                    if ClickDetector then
-                        ClickDetector:Click()
-                        print("✅ Clicked portal!")
-                        Status.Text = "✅ Joined!"
-                        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-                        success = true
-                        return
-                    end
-                    
-                    local Prompt = Portal:FindFirstChild("ProximityPrompt")
-                    if Prompt then
-                        fireproximityprompt(Prompt)
-                        print("✅ Fired proximity prompt!")
-                        Status.Text = "✅ Joined!"
-                        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-                        success = true
-                        return
+        local Knit = ReplicatedStorage:FindFirstChild("Packages")
+        if Knit then
+            local KnitService = Knit:FindFirstChild("Knit")
+            if KnitService then
+                local Services = KnitService:FindFirstChild("Services")
+                if Services then
+                    local DungeonService = Services:FindFirstChild("DungeonService")
+                    if DungeonService and DungeonService.RF then
+                        local StartDungeon = DungeonService.RF:FindFirstChild("StartDungeon")
+                        if StartDungeon then
+                            StartDungeon:InvokeServer("SunVsMoonEvent")
+                            print("✅ Joined via service!")
+                            Status.Text = "✅ Joined!"
+                            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+                            success = true
+                            return
+                        end
                     end
                 end
             end
@@ -182,7 +197,7 @@ function LeaveDungeon()
 end
 
 -- ============================================
--- 3. GUI
+-- 3. GUI (FIXED - using TextButton instead of Frame click)
 -- ============================================
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -190,8 +205,8 @@ ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.Name = "SunVsMoonGUI"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 70)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -35)
+Frame.Size = UDim2.new(0, 200, 0, 95)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -47)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Frame.BackgroundTransparency = 0.2
 Frame.BorderSizePixel = 0
@@ -221,23 +236,48 @@ SubStatus.Font = Enum.Font.SourceSans
 SubStatus.Parent = Frame
 
 local BossStatus = Instance.new("TextLabel")
-BossStatus.Size = UDim2.new(1, 0, 0, 15)
+BossStatus.Size = UDim2.new(1, 0, 0, 20)
 BossStatus.Position = UDim2.new(0, 0, 0, 52)
-BossStatus.Text = "Boss: Unknown"
+BossStatus.Text = "Boss: ⏳ Waiting..."
 BossStatus.TextScaled = true
 BossStatus.BackgroundTransparency = 1
 BossStatus.TextColor3 = Color3.fromRGB(150, 150, 150)
 BossStatus.Font = Enum.Font.SourceSans
 BossStatus.Parent = Frame
 
--- Click to force join
-Frame.MouseButton1Click:Connect(function()
+-- JOIN BUTTON (FIXED - using TextButton)
+local JoinButton = Instance.new("TextButton")
+JoinButton.Size = UDim2.new(0, 80, 0, 28)
+JoinButton.Position = UDim2.new(0.5, -40, 0, 73)
+JoinButton.Text = "JOIN NOW"
+JoinButton.TextScaled = true
+JoinButton.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+JoinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+JoinButton.BorderSizePixel = 0
+JoinButton.Parent = Frame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = JoinButton
+
+-- Button click handler (FIXED)
+JoinButton.MouseButton1Click:Connect(function()
     if not IsInDungeon() then
-        StartDungeon()
+        if IsDungeonAvailable() then
+            StartDungeon()
+        else
+            SubStatus.Text = "🌙 Boss raid not open yet!"
+            SubStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
+            task.wait(1.5)
+            SubStatus.Text = "🌙 Waiting..."
+            SubStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+        end
     else
         SubStatus.Text = "✅ Already in boss raid!"
         SubStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
         task.wait(1)
+        SubStatus.Text = "⚔️ In boss raid"
+        SubStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
     end
 end)
 
@@ -251,9 +291,11 @@ local HasLeft = false
 task.spawn(function()
     while isRunning do
         if IsInDungeon() then
-            -- In dungeon - check boss status
+            -- In dungeon
             SubStatus.Text = "⚔️ In boss raid"
             SubStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+            JoinButton.Text = "IN RAID"
+            JoinButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
             
             if IsBossAlive() then
                 BossStatus.Text = "Boss: 🔴 ALIVE"
@@ -263,7 +305,6 @@ task.spawn(function()
                 BossStatus.Text = "✅ Boss: DEAD"
                 BossStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
                 
-                -- Auto leave after boss is dead
                 if Settings.AutoLeave and not HasLeft then
                     SubStatus.Text = "🚪 Boss dead! Leaving..."
                     SubStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
@@ -275,17 +316,20 @@ task.spawn(function()
         else
             -- In lobby
             HasLeft = false
+            JoinButton.Text = "JOIN NOW"
+            JoinButton.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
             
             if IsDungeonAvailable() then
-                SubStatus.Text = "🌙 Boss raid is OPEN! Joining..."
+                SubStatus.Text = "🌙 Boss raid is OPEN!"
                 SubStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+                BossStatus.Text = "Boss: 🟢 AVAILABLE"
+                BossStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
                 
-                if StartDungeon() then
-                    BossStatus.Text = "Boss: 🔴 ALIVE"
-                    BossStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
-                else
-                    SubStatus.Text = "❌ Join failed, retrying..."
-                    SubStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+                if Settings.AutoJoin then
+                    if StartDungeon() then
+                        BossStatus.Text = "Boss: 🔴 ALIVE"
+                        BossStatus.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    end
                 end
             else
                 SubStatus.Text = "🌙 Boss raid closed. Waiting..."
@@ -313,11 +357,15 @@ UserInputService.InputBegan:Connect(function(Input, Processed)
                 SubStatus.Text = "🌙 Boss raid not open yet!"
                 SubStatus.TextColor3 = Color3.fromRGB(255, 200, 100)
                 task.wait(1.5)
+                SubStatus.Text = "🌙 Waiting..."
+                SubStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
             end
         else
             SubStatus.Text = "✅ Already in boss raid!"
             SubStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
             task.wait(1)
+            SubStatus.Text = "⚔️ In boss raid"
+            SubStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
         end
     end
 end)
@@ -359,6 +407,5 @@ if Settings.AutoJoin then
     print("🌙 Sun Vs Moon Boss Raid - Auto Join Script Loaded!")
     print("📌 Boss raid opens for 5 minutes every hour")
     print("📌 Auto-leaves after boss is killed")
+    print("📌 Click 'JOIN NOW' button or press 'J' to force join")
 end
-
-print("📌 Click the GUI box or press 'J' to force join")
