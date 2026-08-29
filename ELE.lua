@@ -1,5 +1,5 @@
 -- ============================================
--- FIXED AUTO FARM (No nil errors)
+-- STICKY AUTO FARM (Follows mob until dead)
 -- ============================================
 
 -- ============================================
@@ -8,13 +8,13 @@
 
 local Settings = {
     FarmDistance = 5,
-    FarmPosition = "Behind",
+    FarmPosition = "Behind", -- "Behind", "Above", "Under"
     AutoHit = true,
     AutoFarm = false,
 }
 
 -- ============================================
--- 2. CREATE GUI FIRST (Before functions use it)
+-- 2. CREATE GUI
 -- ============================================
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -33,17 +33,15 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Frame
 
--- Title
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 25)
 Title.Position = UDim2.new(0, 0, 0, 2)
-Title.Text = "⚔️ Auto Farm"
+Title.Text = "⚔️ Sticky Auto Farm"
 Title.TextScaled = true
 Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 200, 100)
 Title.Parent = Frame
 
--- Status (MUST be created before functions use it)
 local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, 0, 0, 25)
 Status.Position = UDim2.new(0, 0, 0, 28)
@@ -54,10 +52,19 @@ Status.TextColor3 = Color3.fromRGB(255, 255, 255)
 Status.Font = Enum.Font.SourceSans
 Status.Parent = Frame
 
--- Start/Stop Button
+local TargetStatus = Instance.new("TextLabel")
+TargetStatus.Size = UDim2.new(1, 0, 0, 20)
+TargetStatus.Position = UDim2.new(0, 0, 0, 50)
+TargetStatus.Text = "Target: None"
+TargetStatus.TextScaled = true
+TargetStatus.BackgroundTransparency = 1
+TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+TargetStatus.Font = Enum.Font.SourceSans
+TargetStatus.Parent = Frame
+
 local ToggleBtn = Instance.new("TextButton")
 ToggleBtn.Size = UDim2.new(0, 80, 0, 28)
-ToggleBtn.Position = UDim2.new(0.5, -40, 0, 58)
+ToggleBtn.Position = UDim2.new(0.5, -40, 0, 75)
 ToggleBtn.Text = "START"
 ToggleBtn.TextScaled = true
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
@@ -72,7 +79,7 @@ BtnCorner.Parent = ToggleBtn
 -- Position Button
 local PosBtn = Instance.new("TextButton")
 PosBtn.Size = UDim2.new(0, 60, 0, 25)
-PosBtn.Position = UDim2.new(0.05, 0, 0, 92)
+PosBtn.Position = UDim2.new(0.05, 0, 0, 110)
 PosBtn.Text = "Behind"
 PosBtn.TextScaled = true
 PosBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
@@ -83,7 +90,7 @@ PosBtn.Parent = Frame
 -- Distance controls
 local DistLabel = Instance.new("TextLabel")
 DistLabel.Size = UDim2.new(0, 80, 0, 20)
-DistLabel.Position = UDim2.new(0.55, 0, 0, 92)
+DistLabel.Position = UDim2.new(0.55, 0, 0, 110)
 DistLabel.Text = "Dist: " .. Settings.FarmDistance
 DistLabel.TextScaled = true
 DistLabel.BackgroundTransparency = 1
@@ -93,7 +100,7 @@ DistLabel.Parent = Frame
 
 local DistMinus = Instance.new("TextButton")
 DistMinus.Size = UDim2.new(0, 25, 0, 20)
-DistMinus.Position = UDim2.new(0.55, 0, 0, 113)
+DistMinus.Position = UDim2.new(0.55, 0, 0, 132)
 DistMinus.Text = "-"
 DistMinus.TextScaled = true
 DistMinus.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
@@ -103,7 +110,7 @@ DistMinus.Parent = Frame
 
 local DistPlus = Instance.new("TextButton")
 DistPlus.Size = UDim2.new(0, 25, 0, 20)
-DistPlus.Position = UDim2.new(0.75, 0, 0, 113)
+DistPlus.Position = UDim2.new(0.75, 0, 0, 132)
 DistPlus.Text = "+"
 DistPlus.TextScaled = true
 DistPlus.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
@@ -112,11 +119,14 @@ DistPlus.BorderSizePixel = 0
 DistPlus.Parent = Frame
 
 -- ============================================
--- 3. FUNCTIONS (Now Status exists)
+-- 3. FUNCTIONS
 -- ============================================
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local CurrentTarget = nil
+local isFarming = false
+local FarmTask = nil
 
 function GetNearestMob()
     local Character = LocalPlayer.Character
@@ -150,7 +160,18 @@ function GetNearestMob()
     return Nearest
 end
 
-function MoveToMob(Mob)
+-- Check if target is still alive
+function IsTargetAlive(Mob)
+    if not Mob then return false end
+    local Humanoid = Mob:FindFirstChild("Humanoid")
+    if Humanoid and Humanoid.Health > 0 then
+        return true
+    end
+    return false
+end
+
+-- STICKY MOVE - Follows mob continuously
+function StickToMob(Mob)
     if not Mob then return end
     
     local Character = LocalPlayer.Character
@@ -162,6 +183,7 @@ function MoveToMob(Mob)
     local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
     if not MobHRP then return end
     
+    -- Calculate position offset (sticky)
     local Offsets = {
         Behind = CFrame.new(0, 0, Settings.FarmDistance),
         Above = CFrame.new(0, Settings.FarmDistance, 0),
@@ -171,6 +193,7 @@ function MoveToMob(Mob)
     local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
     local TargetCFrame = MobHRP.CFrame * Offset
     
+    -- STICKY: Teleport to position (instant, stays fixed)
     PlayerHRP.CFrame = TargetCFrame
 end
 
@@ -183,17 +206,14 @@ function HitMob()
 end
 
 -- ============================================
--- 4. FARM LOOP
+-- 4. FARM LOOP (STICKY)
 -- ============================================
-
-local isFarming = false
-local FarmTask = nil
 
 function StartFarm()
     if isFarming then return end
     isFarming = true
+    CurrentTarget = nil
     
-    -- Status exists now
     Status.Text = "⚔️ FARMING"
     Status.TextColor3 = Color3.fromRGB(100, 255, 100)
     ToggleBtn.Text = "STOP"
@@ -201,28 +221,53 @@ function StartFarm()
     
     FarmTask = task.spawn(function()
         while isFarming do
-            local Mob = GetNearestMob()
+            -- If no target or target is dead, find a new one
+            if not IsTargetAlive(CurrentTarget) then
+                CurrentTarget = GetNearestMob()
+                if CurrentTarget then
+                    TargetStatus.Text = "Target: " .. CurrentTarget.Name
+                    TargetStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+                else
+                    TargetStatus.Text = "Target: None"
+                    TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+                    Status.Text = "⏳ No mobs found"
+                    Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    task.wait(1)
+                    continue
+                end
+            end
             
-            if Mob then
-                MoveToMob(Mob)
+            -- STICKY: Follow target continuously
+            if CurrentTarget then
+                StickToMob(CurrentTarget)
+                
                 if Settings.AutoHit then
                     HitMob()
                 end
-                Status.Text = "⚔️ " .. Mob.Name
+                
+                Status.Text = "⚔️ " .. CurrentTarget.Name
                 Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-            else
-                Status.Text = "⏳ No mobs found"
-                Status.TextColor3 = Color3.fromRGB(255, 200, 100)
-                task.wait(1)
+                
+                -- Check if target died
+                if not IsTargetAlive(CurrentTarget) then
+                    Status.Text = "💀 Target died!"
+                    Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+                    CurrentTarget = nil
+                    TargetStatus.Text = "Target: None"
+                    TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+                    task.wait(0.5)
+                end
             end
             
-            task.wait(0.2)
+            task.wait(0.05) -- Fast update for sticky follow
         end
         
         Status.Text = "⏹️ Stopped"
         Status.TextColor3 = Color3.fromRGB(255, 255, 255)
         ToggleBtn.Text = "START"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+        CurrentTarget = nil
+        TargetStatus.Text = "Target: None"
     end)
 end
 
@@ -232,10 +277,12 @@ function StopFarm()
         task.cancel(FarmTask)
         FarmTask = nil
     end
+    CurrentTarget = nil
     Status.Text = "⏹️ Stopped"
     Status.TextColor3 = Color3.fromRGB(255, 255, 255)
     ToggleBtn.Text = "START"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+    TargetStatus.Text = "Target: None"
 end
 
 -- ============================================
@@ -321,6 +368,7 @@ end)
 -- 8. START
 -- ============================================
 
-print("⚔️ Auto Farm Loaded!")
+print("⚔️ Sticky Auto Farm Loaded!")
 print("📌 Press 'F' to toggle ON/OFF")
-print("📌 Mob location: workspace.Mobs")
+print("📌 Sticks to one mob until it dies")
+print("📌 Click 'Behind' to change position")
