@@ -1,5 +1,5 @@
 -- ============================================
--- STICKY AUTO FARM (Follows mob until dead)
+-- STICKY AUTO FARM - FULLY FIXED
 -- ============================================
 
 -- ============================================
@@ -8,7 +8,8 @@
 
 local Settings = {
     FarmDistance = 5,
-    FarmPosition = "Behind", -- "Behind", "Above", "Under"
+    FarmPosition = "Above", -- "Behind", "Above", "Under"
+    SearchRange = 500,       -- How far to search for mobs
     AutoHit = true,
     AutoFarm = false,
 }
@@ -19,11 +20,11 @@ local Settings = {
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.Name = "AutoFarmGUI"
+ScreenGui.Name = "StickyFarmGUI"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 160)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -80)
+Frame.Size = UDim2.new(0, 230, 0, 180)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -90)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Frame.BackgroundTransparency = 0.2
 Frame.BorderSizePixel = 0
@@ -80,7 +81,7 @@ BtnCorner.Parent = ToggleBtn
 local PosBtn = Instance.new("TextButton")
 PosBtn.Size = UDim2.new(0, 60, 0, 25)
 PosBtn.Position = UDim2.new(0.05, 0, 0, 110)
-PosBtn.Text = "Behind"
+PosBtn.Text = "Above"
 PosBtn.TextScaled = true
 PosBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
 PosBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -127,6 +128,7 @@ local LocalPlayer = Players.LocalPlayer
 local CurrentTarget = nil
 local isFarming = false
 local FarmTask = nil
+local StickyConnection = nil
 
 function GetNearestMob()
     local Character = LocalPlayer.Character
@@ -148,7 +150,7 @@ function GetNearestMob()
                 local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
                 if MobHRP then
                     local Dist = (HRP.Position - MobHRP.Position).Magnitude
-                    if Dist < NearestDist and Dist < 200 then
+                    if Dist < NearestDist and Dist < Settings.SearchRange then
                         NearestDist = Dist
                         Nearest = Mob
                     end
@@ -170,7 +172,7 @@ function IsTargetAlive(Mob)
     return false
 end
 
--- STICKY MOVE - Follows mob continuously
+-- STICKY MOVE - Single teleport, then stays stuck
 function StickToMob(Mob)
     if not Mob then return end
     
@@ -183,7 +185,7 @@ function StickToMob(Mob)
     local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
     if not MobHRP then return end
     
-    -- Calculate position offset (sticky)
+    -- Calculate position offset
     local Offsets = {
         Behind = CFrame.new(0, 0, Settings.FarmDistance),
         Above = CFrame.new(0, Settings.FarmDistance, 0),
@@ -193,11 +195,45 @@ function StickToMob(Mob)
     local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
     local TargetCFrame = MobHRP.CFrame * Offset
     
-    -- STICKY: Teleport to position (instant, stays fixed)
+    -- Teleport once to stick position
     PlayerHRP.CFrame = TargetCFrame
 end
 
+-- STICKY UPDATE - Continuously adjusts to keep position
+function UpdateStickyPosition()
+    if not CurrentTarget or not isFarming then return end
+    
+    local Character = LocalPlayer.Character
+    if not Character then return end
+    
+    local PlayerHRP = Character:FindFirstChild("HumanoidRootPart")
+    if not PlayerHRP then return end
+    
+    local MobHRP = CurrentTarget:FindFirstChild("HumanoidRootPart")
+    if not MobHRP then return end
+    
+    -- Calculate position offset
+    local Offsets = {
+        Behind = CFrame.new(0, 0, Settings.FarmDistance),
+        Above = CFrame.new(0, Settings.FarmDistance, 0),
+        Under = CFrame.new(0, -Settings.FarmDistance, 0)
+    }
+    
+    local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
+    local TargetCFrame = MobHRP.CFrame * Offset
+    
+    -- SMOOTH UPDATE: Only teleport if position changed significantly
+    local CurrentPos = PlayerHRP.Position
+    local TargetPos = TargetCFrame.Position
+    local Distance = (CurrentPos - TargetPos).Magnitude
+    
+    if Distance > 0.5 then -- Only update if moved more than 0.5 studs
+        PlayerHRP.CFrame = TargetCFrame
+    end
+end
+
 function HitMob()
+    -- ONLY hit, NO equipping
     pcall(function()
         local VirtualUser = game:GetService("VirtualUser")
         VirtualUser:CaptureController()
@@ -206,13 +242,19 @@ function HitMob()
 end
 
 -- ============================================
--- 4. FARM LOOP (STICKY)
+-- 4. FARM LOOP (STICKY - SINGLE TELEPORT)
 -- ============================================
 
 function StartFarm()
     if isFarming then return end
     isFarming = true
     CurrentTarget = nil
+    
+    -- Clear any existing connection
+    if StickyConnection then
+        StickyConnection:Disconnect()
+        StickyConnection = nil
+    end
     
     Status.Text = "⚔️ FARMING"
     Status.TextColor3 = Color3.fromRGB(100, 255, 100)
@@ -227,41 +269,55 @@ function StartFarm()
                 if CurrentTarget then
                     TargetStatus.Text = "Target: " .. CurrentTarget.Name
                     TargetStatus.TextColor3 = Color3.fromRGB(100, 255, 100)
+                    
+                    -- TELEPORT ONCE to stick position
+                    StickToMob(CurrentTarget)
+                    
+                    -- Start sticky update loop
+                    if StickyConnection then
+                        StickyConnection:Disconnect()
+                    end
+                    StickyConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                        UpdateStickyPosition()
+                    end)
                 else
                     TargetStatus.Text = "Target: None"
                     TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
-                    Status.Text = "⏳ No mobs found"
+                    Status.Text = "⏳ No mobs found (searching " .. Settings.SearchRange .. " studs)"
                     Status.TextColor3 = Color3.fromRGB(255, 200, 100)
                     task.wait(1)
                     continue
                 end
             end
             
-            -- STICKY: Follow target continuously
-            if CurrentTarget then
-                StickToMob(CurrentTarget)
-                
-                if Settings.AutoHit then
-                    HitMob()
-                end
-                
-                Status.Text = "⚔️ " .. CurrentTarget.Name
-                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-                
-                -- Check if target died
-                if not IsTargetAlive(CurrentTarget) then
-                    Status.Text = "💀 Target died!"
-                    Status.TextColor3 = Color3.fromRGB(255, 200, 100)
-                    CurrentTarget = nil
-                    TargetStatus.Text = "Target: None"
-                    TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
-                    task.wait(0.5)
-                end
+            -- Hit mob if enabled
+            if Settings.AutoHit and CurrentTarget then
+                HitMob()
             end
             
-            task.wait(0.05) -- Fast update for sticky follow
+            -- Check if target died
+            if CurrentTarget and not IsTargetAlive(CurrentTarget) then
+                Status.Text = "💀 Target died!"
+                Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+                CurrentTarget = nil
+                TargetStatus.Text = "Target: None"
+                TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
+                
+                if StickyConnection then
+                    StickyConnection:Disconnect()
+                    StickyConnection = nil
+                end
+                task.wait(0.5)
+            end
+            
+            task.wait(0.1)
         end
         
+        -- Cleanup
+        if StickyConnection then
+            StickyConnection:Disconnect()
+            StickyConnection = nil
+        end
         Status.Text = "⏹️ Stopped"
         Status.TextColor3 = Color3.fromRGB(255, 255, 255)
         ToggleBtn.Text = "START"
@@ -273,10 +329,17 @@ end
 
 function StopFarm()
     isFarming = false
+    
+    if StickyConnection then
+        StickyConnection:Disconnect()
+        StickyConnection = nil
+    end
+    
     if FarmTask then
         task.cancel(FarmTask)
         FarmTask = nil
     end
+    
     CurrentTarget = nil
     Status.Text = "⏹️ Stopped"
     Status.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -298,7 +361,7 @@ ToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 local Positions = {"Behind", "Above", "Under"}
-local PosIndex = 1
+local PosIndex = 2 -- Start at "Above"
 
 PosBtn.MouseButton1Click:Connect(function()
     PosIndex = PosIndex + 1
@@ -370,5 +433,6 @@ end)
 
 print("⚔️ Sticky Auto Farm Loaded!")
 print("📌 Press 'F' to toggle ON/OFF")
+print("📌 Search Range: " .. Settings.SearchRange .. " studs")
+print("📌 Position: " .. Settings.FarmPosition)
 print("📌 Sticks to one mob until it dies")
-print("📌 Click 'Behind' to change position")
