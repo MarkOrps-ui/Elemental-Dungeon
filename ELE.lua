@@ -1,5 +1,5 @@
 -- ============================================
--- FIXED AUTO FARM (Based on current workspace)
+-- FIXED AUTO FARM (No nil errors)
 -- ============================================
 
 -- ============================================
@@ -8,190 +8,13 @@
 
 local Settings = {
     FarmDistance = 5,
-    FarmPosition = "Behind", -- "Behind", "Above", "Under"
+    FarmPosition = "Behind",
     AutoHit = true,
     AutoFarm = false,
 }
 
 -- ============================================
--- 2. FIND NEAREST MOB (FIXED)
--- ============================================
-
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-
-function GetNearestMob()
-    local Character = LocalPlayer.Character
-    if not Character then return nil end
-    
-    local HRP = Character:FindFirstChild("HumanoidRootPart")
-    if not HRP then return nil end
-    
-    -- Mob location is workspace.Mobs (confirmed from screenshot)
-    local Mobs = workspace:FindFirstChild("Mobs")
-    if not Mobs then 
-        print("❌ No Mobs folder found!")
-        return nil 
-    end
-    
-    local Nearest = nil
-    local NearestDist = math.huge
-    
-    for _, Mob in pairs(Mobs:GetChildren()) do
-        if Mob:IsA("Model") then
-            local Humanoid = Mob:FindFirstChild("Humanoid")
-            if Humanoid and Humanoid.Health > 0 then
-                local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
-                if MobHRP then
-                    local Dist = (HRP.Position - MobHRP.Position).Magnitude
-                    if Dist < NearestDist and Dist < 200 then
-                        NearestDist = Dist
-                        Nearest = Mob
-                    end
-                end
-            end
-        end
-    end
-    
-    if Nearest then
-        print("🎯 Found mob: " .. Nearest.Name .. " at distance: " .. math.floor(NearestDist))
-    end
-    
-    return Nearest
-end
-
--- ============================================
--- 3. MOVE TO MOB (TELEPORT METHOD)
--- ============================================
-
-function MoveToMob(Mob)
-    if not Mob then return end
-    
-    local Character = LocalPlayer.Character
-    if not Character then return end
-    
-    local PlayerHRP = Character:FindFirstChild("HumanoidRootPart")
-    if not PlayerHRP then return end
-    
-    local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
-    if not MobHRP then return end
-    
-    -- Calculate position offsets
-    local Offsets = {
-        Behind = CFrame.new(0, 0, Settings.FarmDistance),
-        Above = CFrame.new(0, Settings.FarmDistance, 0),
-        Under = CFrame.new(0, -Settings.FarmDistance, 0)
-    }
-    
-    local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
-    local TargetCFrame = MobHRP.CFrame * Offset
-    
-    -- TELEPORT method (instant)
-    PlayerHRP.CFrame = TargetCFrame
-    
-    print("📍 Teleported to: " .. Settings.FarmPosition .. " of " .. Mob.Name)
-end
-
--- ============================================
--- 4. MOVE TO MOB (TWEEN METHOD - SMOOTH)
--- ============================================
-
-function MoveToMobTween(Mob)
-    if not Mob then return end
-    
-    local Character = LocalPlayer.Character
-    if not Character then return end
-    
-    local PlayerHRP = Character:FindFirstChild("HumanoidRootPart")
-    if not PlayerHRP then return end
-    
-    local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
-    if not MobHRP then return end
-    
-    local Offsets = {
-        Behind = CFrame.new(0, 0, Settings.FarmDistance),
-        Above = CFrame.new(0, Settings.FarmDistance, 0),
-        Under = CFrame.new(0, -Settings.FarmDistance, 0)
-    }
-    
-    local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
-    local TargetCFrame = MobHRP.CFrame * Offset
-    
-    -- Tween method
-    local TweenService = game:GetService("TweenService")
-    local TweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Linear)
-    local Tween = TweenService:Create(PlayerHRP, TweenInfo, { CFrame = TargetCFrame })
-    Tween:Play()
-    Tween.Completed:Wait()
-end
-
--- ============================================
--- 5. HIT MOB
--- ============================================
-
-function HitMob()
-    pcall(function()
-        local VirtualUser = game:GetService("VirtualUser")
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(Vector2.new(0, 0))
-    end)
-end
-
--- ============================================
--- 6. MAIN FARM LOOP
--- ============================================
-
-local isFarming = false
-local FarmTask = nil
-
-function StartFarm()
-    if isFarming then return end
-    isFarming = true
-    Status.Text = "⚔️ FARMING"
-    Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-    
-    FarmTask = task.spawn(function()
-        while isFarming do
-            -- Get nearest mob
-            local Mob = GetNearestMob()
-            
-            if Mob then
-                -- Move to mob (instant teleport)
-                MoveToMob(Mob)
-                
-                -- Hit mob
-                if Settings.AutoHit then
-                    HitMob()
-                end
-                
-                Status.Text = "⚔️ " .. Mob.Name
-                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-            else
-                Status.Text = "⏳ No mobs found"
-                Status.TextColor3 = Color3.fromRGB(255, 200, 100)
-                task.wait(1)
-            end
-            
-            task.wait(0.2)
-        end
-        
-        Status.Text = "⏹️ Stopped"
-        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
-    end)
-end
-
-function StopFarm()
-    isFarming = false
-    if FarmTask then
-        task.cancel(FarmTask)
-        FarmTask = nil
-    end
-    Status.Text = "⏹️ Stopped"
-    Status.TextColor3 = Color3.fromRGB(255, 255, 255)
-end
-
--- ============================================
--- 7. GUI
+-- 2. CREATE GUI FIRST (Before functions use it)
 -- ============================================
 
 local ScreenGui = Instance.new("ScreenGui")
@@ -210,6 +33,7 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Frame
 
+-- Title
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 25)
 Title.Position = UDim2.new(0, 0, 0, 2)
@@ -219,6 +43,7 @@ Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 200, 100)
 Title.Parent = Frame
 
+-- Status (MUST be created before functions use it)
 local Status = Instance.new("TextLabel")
 Status.Size = UDim2.new(1, 0, 0, 25)
 Status.Position = UDim2.new(0, 0, 0, 28)
@@ -287,18 +112,141 @@ DistPlus.BorderSizePixel = 0
 DistPlus.Parent = Frame
 
 -- ============================================
--- 8. GUI FUNCTIONS
+-- 3. FUNCTIONS (Now Status exists)
+-- ============================================
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+function GetNearestMob()
+    local Character = LocalPlayer.Character
+    if not Character then return nil end
+    
+    local HRP = Character:FindFirstChild("HumanoidRootPart")
+    if not HRP then return nil end
+    
+    local Mobs = workspace:FindFirstChild("Mobs")
+    if not Mobs then return nil end
+    
+    local Nearest = nil
+    local NearestDist = math.huge
+    
+    for _, Mob in pairs(Mobs:GetChildren()) do
+        if Mob:IsA("Model") then
+            local Humanoid = Mob:FindFirstChild("Humanoid")
+            if Humanoid and Humanoid.Health > 0 then
+                local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
+                if MobHRP then
+                    local Dist = (HRP.Position - MobHRP.Position).Magnitude
+                    if Dist < NearestDist and Dist < 200 then
+                        NearestDist = Dist
+                        Nearest = Mob
+                    end
+                end
+            end
+        end
+    end
+    
+    return Nearest
+end
+
+function MoveToMob(Mob)
+    if not Mob then return end
+    
+    local Character = LocalPlayer.Character
+    if not Character then return end
+    
+    local PlayerHRP = Character:FindFirstChild("HumanoidRootPart")
+    if not PlayerHRP then return end
+    
+    local MobHRP = Mob:FindFirstChild("HumanoidRootPart")
+    if not MobHRP then return end
+    
+    local Offsets = {
+        Behind = CFrame.new(0, 0, Settings.FarmDistance),
+        Above = CFrame.new(0, Settings.FarmDistance, 0),
+        Under = CFrame.new(0, -Settings.FarmDistance, 0)
+    }
+    
+    local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
+    local TargetCFrame = MobHRP.CFrame * Offset
+    
+    PlayerHRP.CFrame = TargetCFrame
+end
+
+function HitMob()
+    pcall(function()
+        local VirtualUser = game:GetService("VirtualUser")
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton1(Vector2.new(0, 0))
+    end)
+end
+
+-- ============================================
+-- 4. FARM LOOP
+-- ============================================
+
+local isFarming = false
+local FarmTask = nil
+
+function StartFarm()
+    if isFarming then return end
+    isFarming = true
+    
+    -- Status exists now
+    Status.Text = "⚔️ FARMING"
+    Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    ToggleBtn.Text = "STOP"
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    
+    FarmTask = task.spawn(function()
+        while isFarming do
+            local Mob = GetNearestMob()
+            
+            if Mob then
+                MoveToMob(Mob)
+                if Settings.AutoHit then
+                    HitMob()
+                end
+                Status.Text = "⚔️ " .. Mob.Name
+                Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+            else
+                Status.Text = "⏳ No mobs found"
+                Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+                task.wait(1)
+            end
+            
+            task.wait(0.2)
+        end
+        
+        Status.Text = "⏹️ Stopped"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+        ToggleBtn.Text = "START"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+    end)
+end
+
+function StopFarm()
+    isFarming = false
+    if FarmTask then
+        task.cancel(FarmTask)
+        FarmTask = nil
+    end
+    Status.Text = "⏹️ Stopped"
+    Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleBtn.Text = "START"
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
+end
+
+-- ============================================
+-- 5. GUI BUTTONS
 -- ============================================
 
 ToggleBtn.MouseButton1Click:Connect(function()
     if isFarming then
         StopFarm()
-        ToggleBtn.Text = "START"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
     else
         StartFarm()
-        ToggleBtn.Text = "STOP"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
     end
 end)
 
@@ -327,7 +275,7 @@ DistPlus.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================
--- 9. KEYBIND - Press F to toggle
+-- 6. KEYBIND - Press F to toggle
 -- ============================================
 
 local UserInputService = game:GetService("UserInputService")
@@ -335,18 +283,14 @@ UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.F then
         if isFarming then
             StopFarm()
-            ToggleBtn.Text = "START"
-            ToggleBtn.BackgroundColor3 = Color3.fromRGB(40, 200, 80)
         else
             StartFarm()
-            ToggleBtn.Text = "STOP"
-            ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
         end
     end
 end)
 
 -- ============================================
--- 10. DRAG GUI
+-- 7. DRAG GUI
 -- ============================================
 
 local Dragging = false
@@ -374,10 +318,9 @@ Frame.InputChanged:Connect(function(Input)
 end)
 
 -- ============================================
--- 11. START
+-- 8. START
 -- ============================================
 
-print("⚔️ Auto Farm (Fixed) Loaded!")
+print("⚔️ Auto Farm Loaded!")
 print("📌 Press 'F' to toggle ON/OFF")
-print("📌 Mob location: workspace.Mobs (confirmed)")
-print("📌 Click 'Behind' to change position")
+print("📌 Mob location: workspace.Mobs")
