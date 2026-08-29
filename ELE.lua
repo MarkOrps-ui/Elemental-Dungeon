@@ -1,5 +1,5 @@
 -- ============================================
--- STICKY AUTO FARM - FULLY FIXED
+-- PURE STICKY TELEPORT (No Hit/Equip)
 -- ============================================
 
 -- ============================================
@@ -9,8 +9,7 @@
 local Settings = {
     FarmDistance = 5,
     FarmPosition = "Above", -- "Behind", "Above", "Under"
-    SearchRange = 500,       -- How far to search for mobs
-    AutoHit = true,
+    SearchRange = 1500,       -- How far to search for mobs
     AutoFarm = false,
 }
 
@@ -37,7 +36,7 @@ Corner.Parent = Frame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 25)
 Title.Position = UDim2.new(0, 0, 0, 2)
-Title.Text = "⚔️ Sticky Auto Farm"
+Title.Text = "⚔️ Sticky Teleport"
 Title.TextScaled = true
 Title.BackgroundTransparency = 1
 Title.TextColor3 = Color3.fromRGB(255, 200, 100)
@@ -120,7 +119,7 @@ DistPlus.BorderSizePixel = 0
 DistPlus.Parent = Frame
 
 -- ============================================
--- 3. FUNCTIONS
+-- 3. FUNCTIONS (NO HIT/EQUIP)
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -172,7 +171,7 @@ function IsTargetAlive(Mob)
     return false
 end
 
--- STICKY MOVE - Single teleport, then stays stuck
+-- STICKY MOVE - Single teleport to stick position
 function StickToMob(Mob)
     if not Mob then return end
     
@@ -199,7 +198,7 @@ function StickToMob(Mob)
     PlayerHRP.CFrame = TargetCFrame
 end
 
--- STICKY UPDATE - Continuously adjusts to keep position
+-- STICKY UPDATE - Continuously adjusts to keep position (NO HIT)
 function UpdateStickyPosition()
     if not CurrentTarget or not isFarming then return end
     
@@ -222,27 +221,18 @@ function UpdateStickyPosition()
     local Offset = Offsets[Settings.FarmPosition] or Offsets.Behind
     local TargetCFrame = MobHRP.CFrame * Offset
     
-    -- SMOOTH UPDATE: Only teleport if position changed significantly
+    -- Smooth update - only move if significantly off position
     local CurrentPos = PlayerHRP.Position
     local TargetPos = TargetCFrame.Position
     local Distance = (CurrentPos - TargetPos).Magnitude
     
-    if Distance > 0.5 then -- Only update if moved more than 0.5 studs
+    if Distance > 0.5 then
         PlayerHRP.CFrame = TargetCFrame
     end
 end
 
-function HitMob()
-    -- ONLY hit, NO equipping
-    pcall(function()
-        local VirtualUser = game:GetService("VirtualUser")
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(Vector2.new(0, 0))
-    end)
-end
-
 -- ============================================
--- 4. FARM LOOP (STICKY - SINGLE TELEPORT)
+-- 4. FARM LOOP (PURE TELEPORT, NO HIT)
 -- ============================================
 
 function StartFarm()
@@ -250,13 +240,12 @@ function StartFarm()
     isFarming = true
     CurrentTarget = nil
     
-    -- Clear any existing connection
     if StickyConnection then
         StickyConnection:Disconnect()
         StickyConnection = nil
     end
     
-    Status.Text = "⚔️ FARMING"
+    Status.Text = "📌 STICKY TELEPORT"
     Status.TextColor3 = Color3.fromRGB(100, 255, 100)
     ToggleBtn.Text = "STOP"
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
@@ -283,17 +272,14 @@ function StartFarm()
                 else
                     TargetStatus.Text = "Target: None"
                     TargetStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
-                    Status.Text = "⏳ No mobs found (searching " .. Settings.SearchRange .. " studs)"
+                    Status.Text = "⏳ Searching " .. Settings.SearchRange .. " studs"
                     Status.TextColor3 = Color3.fromRGB(255, 200, 100)
                     task.wait(1)
                     continue
                 end
             end
             
-            -- Hit mob if enabled
-            if Settings.AutoHit and CurrentTarget then
-                HitMob()
-            end
+            -- NO HIT - pure teleport only
             
             -- Check if target died
             if CurrentTarget and not IsTargetAlive(CurrentTarget) then
@@ -313,7 +299,6 @@ function StartFarm()
             task.wait(0.1)
         end
         
-        -- Cleanup
         if StickyConnection then
             StickyConnection:Disconnect()
             StickyConnection = nil
@@ -431,8 +416,8 @@ end)
 -- 8. START
 -- ============================================
 
-print("⚔️ Sticky Auto Farm Loaded!")
+print("⚔️ Pure Sticky Teleport Loaded!")
 print("📌 Press 'F' to toggle ON/OFF")
+print("📌 NO HIT - Pure teleport/sticky only")
 print("📌 Search Range: " .. Settings.SearchRange .. " studs")
 print("📌 Position: " .. Settings.FarmPosition)
-print("📌 Sticks to one mob until it dies")
