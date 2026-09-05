@@ -1,137 +1,100 @@
 -- ============================================
--- KILL ALL MOBS - ROBUST FINDER
+-- KILL ALL MOBS - WITH DAMAGE DEBUG
 -- ============================================
 
 local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
+-- Find UseWeapon
+local WS = RS:FindFirstChild("ReplicatedStorage"):FindFirstChild("Packages"):FindFirstChild("Knit"):FindFirstChild("Services"):FindFirstChild("WeaponService")
+local RF = WS:FindFirstChild("RF")
+local UW = RF:FindFirstChild("UseWeapon")
+
+print("✅ UseWeapon found!")
+
 -- ============================================
--- FIND USE WEAPON - MULTIPLE METHODS
+-- GET WEAPON DATA
 -- ============================================
 
-function FindUseWeapon()
-    print("🔍 Searching for UseWeapon...")
+function GetWeaponData()
+    local c = LocalPlayer.Character
+    if not c then return nil end
     
-    -- METHOD 1: Direct path
-    local path1 = RS:FindFirstChild("ReplicatedStorage")
-    if path1 then
-        local Packages = path1:FindFirstChild("Packages")
-        if Packages then
-            local Knit = Packages:FindFirstChild("Knit")
-            if Knit then
-                local Services = Knit:FindFirstChild("Services")
-                if Services then
-                    local WeaponService = Services:FindFirstChild("WeaponService")
-                    if WeaponService then
-                        local RF = WeaponService:FindFirstChild("RF")
-                        if RF then
-                            local UW = RF:FindFirstChild("UseWeapon")
-                            if UW then
-                                print("✅ Found UseWeapon at path 1")
-                                return UW
-                            end
-                        end
-                    end
-                end
-            end
+    for _, t in pairs(c:GetChildren()) do
+        if t:IsA("Tool") then
+            local data = {
+                name = t.Name,
+                id = nil,
+                damage = nil,
+                type = nil
+            }
+            
+            -- Try to find weapon ID
+            local id = t:FindFirstChild("WeaponId")
+            if id then data.id = id.Value end
+            
+            -- Try to find damage value
+            local dmg = t:FindFirstChild("Damage")
+            if dmg then data.damage = dmg.Value end
+            
+            -- Check for weapon type
+            local typ = t:FindFirstChild("WeaponType")
+            if typ then data.type = typ.Value end
+            
+            return data
         end
     end
-    
-    -- METHOD 2: Direct from ReplicatedStorage
-    local Packages = RS:FindFirstChild("Packages")
-    if Packages then
-        local Knit = Packages:FindFirstChild("Knit")
-        if Knit then
-            local Services = Knit:FindFirstChild("Services")
-            if Services then
-                local WeaponService = Services:FindFirstChild("WeaponService")
-                if WeaponService then
-                    local RF = WeaponService:FindFirstChild("RF")
-                    if RF then
-                        local UW = RF:FindFirstChild("UseWeapon")
-                        if UW then
-                            print("✅ Found UseWeapon at path 2")
-                            return UW
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    -- METHOD 3: Search everything
-    local function Search(parent)
-        for _, child in pairs(parent:GetChildren()) do
-            if child.Name == "UseWeapon" then
-                print("✅ Found UseWeapon at: " .. child:GetFullName())
-                return child
-            end
-            if child:IsA("Folder") or child:IsA("ModuleScript") then
-                local found = Search(child)
-                if found then return found end
-            end
-        end
-        return nil
-    end
-    
-    local found = Search(RS)
-    if found then
-        return found
-    end
-    
-    print("❌ UseWeapon not found!")
     return nil
 end
 
 -- ============================================
--- GET WEAPON ID
+-- GET MOB DATA (Including ID)
 -- ============================================
 
-function GetWeaponId()
-    local c = LocalPlayer.Character
-    if not c then return "HFA27LM88128" end
+function GetMobData(mob)
+    if not mob then return nil end
     
-    for _, t in pairs(c:GetChildren()) do
-        if t:IsA("Tool") then
-            -- Try different ID locations
-            local id = t:FindFirstChild("WeaponId")
-            if id then return id.Value end
-            local serial = t:FindFirstChild("Serial")
-            if serial then return serial.Value end
-            local handle = t:FindFirstChild("Handle")
-            if handle then
-                for _, child in pairs(handle:GetChildren()) do
-                    if child.Name == "WeaponId" then
-                        return child.Value
-                    end
-                end
+    local data = {
+        name = mob.Name,
+        id = nil,
+        health = 0,
+        maxHealth = 0,
+        humanoid = mob:FindFirstChild("Humanoid")
+    }
+    
+    if data.humanoid then
+        data.health = data.humanoid.Health
+        data.maxHealth = data.humanoid.MaxHealth
+    end
+    
+    -- Find mob ID (important!)
+    local id = mob:FindFirstChild("Id")
+    if id then
+        data.id = id.Value
+    else
+        -- Try to find ID in children
+        for _, child in pairs(mob:GetChildren()) do
+            if child.Name == "Id" or child.Name == "MobId" then
+                data.id = child.Value
+                break
             end
-            -- Check attributes
-            local success, result = pcall(function()
-                return t:GetAttribute("WeaponId")
-            end)
-            if success and result then
-                return result
-            end
-            return t.Name
         end
     end
-    return "HFA27LM88128"
+    
+    -- If no ID, use the mob's name
+    if not data.id then
+        data.id = mob.Name
+    end
+    
+    return data
 end
 
 -- ============================================
--- ATTACK MOB
+-- ATTACK MOB WITH DIFFERENT ARGS
 -- ============================================
 
-local UseWeapon = FindUseWeapon()
-
 function AttackMob(mob)
-    if not UseWeapon then
-        print("❌ UseWeapon not available!")
-        return false
-    end
-    
     if not mob then
         print("❌ No mob provided")
         return false
@@ -149,37 +112,50 @@ function AttackMob(mob)
         return false
     end
     
+    local mobData = GetMobData(mob)
+    if not mobData then
+        print("❌ Could not get mob data")
+        return false
+    end
+    
+    if not mobData.humanoid or mobData.health <= 0 then
+        print("❌ Mob already dead")
+        return false
+    end
+    
+    local weaponData = GetWeaponData()
+    if not weaponData then
+        print("❌ No weapon found!")
+        return false
+    end
+    
     local mobHrp = mob:FindFirstChild("HumanoidRootPart")
     if not mobHrp then
         print("❌ Mob has no HumanoidRootPart")
         return false
     end
     
-    local humanoid = mob:FindFirstChild("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then
-        print("❌ Mob already dead")
-        return false
-    end
-    
-    local weaponId = GetWeaponId()
-    print("🔧 Weapon ID: " .. weaponId)
+    print("🔧 Weapon: " .. weaponData.name .. " (ID: " .. (weaponData.id or "unknown") .. ")")
+    print("🎯 Mob: " .. mobData.name .. " (ID: " .. mobData.id .. ", HP: " .. mobData.health .. ")")
     
     -- Face the mob
     hrp.CFrame = CFrame.lookAt(hrp.Position, mobHrp.Position)
     
+    local success = false
+    
     -- ============================================
-    -- TRY DIFFERENT ARGUMENT FORMATS
+    -- TRY ALL ARGUMENT FORMATS WITH DIFFERENT DAMAGE
     -- ============================================
     
     local formats = {
-        -- Format 1: From your log
-        function()
+        -- Format 1: Original with damage value
+        function(dmg)
             return {
                 [1] = 0,
                 [2] = {},
-                [3] = 0,
+                [3] = dmg or 999999,
                 [4] = nil,
-                [5] = weaponId,
+                [5] = weaponData.id or "HFA27LM88128",
                 [6] = {
                     CharacterPosition = hrp.Position,
                     Direction = (mobHrp.Position - hrp.Position).Unit,
@@ -188,16 +164,15 @@ function AttackMob(mob)
                 }
             }
         end,
-        -- Format 2: With mob as first arg
-        function()
+        -- Format 2: With mob ID
+        function(dmg)
             return {
-                [1] = mob,
-                [2] = 0,
-                [3] = {},
-                [4] = 0,
-                [5] = nil,
-                [6] = weaponId,
-                [7] = {
+                [1] = 0,
+                [2] = {},
+                [3] = dmg or 999999,
+                [4] = mobData.id,
+                [5] = weaponData.id or "HFA27LM88128",
+                [6] = {
                     CharacterPosition = hrp.Position,
                     Direction = (mobHrp.Position - hrp.Position).Unit,
                     Origin = hrp.Position + Vector3.new(0, 4, 0),
@@ -205,104 +180,80 @@ function AttackMob(mob)
                 }
             }
         end,
-        -- Format 3: Simple
-        function()
+        -- Format 3: Mob first
+        function(dmg)
             return {
                 [1] = mob,
-                [2] = weaponId,
-                [3] = hrp.Position,
-                [4] = mobHrp.Position,
-                [5] = 99999
+                [2] = dmg or 999999,
+                [3] = weaponData.id or "HFA27LM88128",
+                [4] = {
+                    CharacterPosition = hrp.Position,
+                    Direction = (mobHrp.Position - hrp.Position).Unit,
+                    Origin = hrp.Position + Vector3.new(0, 4, 0),
+                    Position = mobHrp.Position
+                }
             }
         end,
-        -- Format 4: With damage
-        function()
+        -- Format 4: With damage type
+        function(dmg)
             return {
                 [1] = 0,
                 [2] = mob,
-                [3] = 99999,
-                [4] = weaponId,
-                [5] = {
+                [3] = dmg or 999999,
+                [4] = "Normal",
+                [5] = weaponData.id or "HFA27LM88128",
+                [6] = {
                     CharacterPosition = hrp.Position,
                     Direction = (mobHrp.Position - hrp.Position).Unit,
                     Origin = hrp.Position + Vector3.new(0, 4, 0),
                     Position = mobHrp.Position
                 }
+            }
+        end,
+        -- Format 5: Simple damage
+        function(dmg)
+            return {
+                [1] = mob,
+                [2] = dmg or 999999,
+                [3] = weaponData.id or "HFA27LM88128"
             }
         end
     }
     
-    local success = false
-    local lastError = ""
+    local damages = {999999, 99999, 9999, 999, 99, 9}
+    local worked = false
     
-    for i, formatFunc in ipairs(formats) do
-        if not success then
-            local args = formatFunc()
-            local result = pcall(function()
-                UseWeapon:InvokeServer(unpack(args, 1, args.n or #args))
-            end)
-            if result then
-                print("  ✅ Format " .. i .. " worked!")
-                success = true
-            else
-                lastError = "Format " .. i .. " failed"
+    for dmgIndex, dmg in ipairs(damages) do
+        if not worked then
+            for fmtIndex, formatFunc in ipairs(formats) do
+                if not worked then
+                    local args = formatFunc(dmg)
+                    local result = pcall(function()
+                        UW:InvokeServer(unpack(args, 1, args.n or #args))
+                    end)
+                    if result then
+                        print("  ✅ Format " .. fmtIndex .. " with damage " .. dmg .. " sent")
+                        worked = true
+                    end
+                    task.wait(0.05)
+                end
             end
-            task.wait(0.1)
         end
     end
     
     -- Check if mob died
-    task.wait(0.2)
-    if humanoid.Health <= 0 then
+    task.wait(0.3)
+    local newHealth = mobData.humanoid.Health
+    if newHealth <= 0 then
         print("  💀 Mob DIED!")
         return true
     else
-        print("  ❌ Mob still alive (HP: " .. humanoid.Health .. ")")
-        if not success then
-            print("  ⚠️ " .. lastError)
-            print("  💡 Try holding your weapon while attacking")
+        print("  ❌ Mob still alive (HP: " .. newHealth .. ", Damage dealt: " .. (mobData.health - newHealth) .. ")")
+        if mobData.health == newHealth then
+            print("  ⚠️ No damage applied! The remote might need a different parameter")
         end
         return false
     end
-end
-
--- ============================================
--- KILL ALL MOBS
--- ============================================
-
-function KillAll()
-    local Mobs = workspace:FindFirstChild("Mobs")
-    if not Mobs then 
-        print("❌ No Mobs found!")
-        return 
-    end
-    
-    local Alive = {}
-    for _, mob in pairs(Mobs:GetChildren()) do
-        if mob:IsA("Model") then
-            local h = mob:FindFirstChild("Humanoid")
-            if h and h.Health > 0 then
-                table.insert(Alive, mob)
-            end
-        end
-    end
-    
-    if #Alive == 0 then
-        print("✅ No alive mobs!")
-        return
-    end
-    
-    print("🔍 Found " .. #Alive .. " alive mobs")
-    
-    local killed = 0
-    for _, mob in pairs(Alive) do
-        if AttackMob(mob) then
-            killed = killed + 1
-        end
-        task.wait(0.3)
-    end
-    
-    print("💀 Killed " .. killed .. " / " .. #Alive .. " mobs")
 end
 
 -- ============================================
@@ -340,6 +291,50 @@ function GetNearestMob()
 end
 
 -- ============================================
+-- KILL ALL
+-- ============================================
+
+function KillAll()
+    local Mobs = workspace:FindFirstChild("Mobs")
+    if not Mobs then 
+        print("❌ No Mobs found!")
+        return 
+    end
+    
+    local Alive = {}
+    for _, mob in pairs(Mobs:GetChildren()) do
+        if mob:IsA("Model") then
+            local h = mob:FindFirstChild("Humanoid")
+            if h and h.Health > 0 then
+                local mhrp = mob:FindFirstChild("HumanoidRootPart")
+                if mhrp then
+                    table.insert(Alive, mob)
+                else
+                    print("⚠️ Skipping " .. mob.Name .. " (no HumanoidRootPart)")
+                end
+            end
+        end
+    end
+    
+    if #Alive == 0 then
+        print("✅ No alive mobs with HumanoidRootPart!")
+        return
+    end
+    
+    print("🔍 Found " .. #Alive .. " attackable mobs")
+    
+    local killed = 0
+    for _, mob in pairs(Alive) do
+        if AttackMob(mob) then
+            killed = killed + 1
+        end
+        task.wait(0.2)
+    end
+    
+    print("💀 Killed " .. killed .. " / " .. #Alive .. " mobs")
+end
+
+-- ============================================
 -- KEYBINDS
 -- ============================================
 
@@ -365,21 +360,18 @@ UIS.InputBegan:Connect(function(i)
 end)
 
 -- ============================================
--- AUTO START
+-- START
 -- ============================================
 
-print("💀 Kill All Mobs - Robust Loaded!")
-print("📌 UseWeapon found: " .. tostring(UseWeapon ~= nil))
-if UseWeapon then
-    print("📌 Press 'J' to test attack")
-    print("📌 Press 'K' to kill all mobs")
-    print("📌 Make sure you're holding a weapon!")
-end
+print("💀 Kill All Mobs - Debug Version Loaded!")
+print("📌 Press 'J' to test attack on nearest mob")
+print("📌 Press 'K' to kill all mobs")
+print("📌 Check the console for damage results")
 
 -- Auto-test
 task.wait(2)
 local testMob = GetNearestMob()
-if testMob and UseWeapon then
+if testMob then
     print("🧪 Auto-testing on: " .. testMob.Name)
     AttackMob(testMob)
 end
