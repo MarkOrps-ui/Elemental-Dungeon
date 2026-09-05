@@ -1,5 +1,5 @@
 -- ============================================
--- KILL ALL MOBS - USING WEAPONSERVICE
+-- KILL ALL MOBS - FIXED PATH & STATUS
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -7,25 +7,150 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ============================================
--- FIND WEAPONSERVICE
+-- CREATE GUI FIRST (Fix nil error)
 -- ============================================
 
-function GetWeaponService()
-    local Knit = ReplicatedStorage:FindFirstChild("Packages")
-    if Knit then
-        local KnitService = Knit:FindFirstChild("Knit")
-        if KnitService then
-            local Services = KnitService:FindFirstChild("Services")
-            if Services then
-                return Services:FindFirstChild("WeaponService")
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Name = "KillAuraGUI"
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 220, 0, 150)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -75)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+Frame.BackgroundTransparency = 0.2
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = Frame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.Position = UDim2.new(0, 0, 0, 2)
+Title.Text = "💀 Kill All Mobs"
+Title.TextScaled = true
+Title.BackgroundTransparency = 1
+Title.TextColor3 = Color3.fromRGB(255, 100, 100)
+Title.Parent = Frame
+
+-- STATUS (Created before any function uses it)
+local Status = Instance.new("TextLabel")
+Status.Size = UDim2.new(1, 0, 0, 25)
+Status.Position = UDim2.new(0, 0, 0, 28)
+Status.Text = "⏹️ Ready"
+Status.TextScaled = true
+Status.BackgroundTransparency = 1
+Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+Status.Font = Enum.Font.SourceSans
+Status.Parent = Frame
+
+local KillBtn = Instance.new("TextButton")
+KillBtn.Size = UDim2.new(0, 100, 0, 28)
+KillBtn.Position = UDim2.new(0.5, -50, 0, 58)
+KillBtn.Text = "💀 KILL ALL"
+KillBtn.TextScaled = true
+KillBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+KillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+KillBtn.BorderSizePixel = 0
+KillBtn.Parent = Frame
+
+local BtnCorner = Instance.new("UICorner")
+BtnCorner.CornerRadius = UDim.new(0, 6)
+BtnCorner.Parent = KillBtn
+
+-- Debug Button
+local DebugBtn = Instance.new("TextButton")
+DebugBtn.Size = UDim2.new(0, 100, 0, 25)
+DebugBtn.Position = UDim2.new(0.5, -50, 0, 90)
+DebugBtn.Text = "🔍 FIND SERVICE"
+DebugBtn.TextScaled = true
+DebugBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+DebugBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DebugBtn.BorderSizePixel = 0
+DebugBtn.Parent = Frame
+
+local DebugCorner = Instance.new("UICorner")
+DebugCorner.CornerRadius = UDim.new(0, 6)
+DebugCorner.Parent = DebugBtn
+
+-- ============================================
+-- FIND WEAPONSERVICE (FIXED PATH)
+-- ============================================
+
+function FindWeaponService()
+    print("🔍 Searching for WeaponService...")
+    
+    -- Try different paths
+    local paths = {
+        -- Path 1: Direct from ReplicatedStorage
+        function()
+            local RS = game:GetService("ReplicatedStorage")
+            local Packages = RS:FindFirstChild("Packages")
+            if Packages then
+                local Knit = Packages:FindFirstChild("Knit")
+                if Knit then
+                    local Services = Knit:FindFirstChild("Services")
+                    if Services then
+                        return Services:FindFirstChild("WeaponService")
+                    end
+                end
             end
+            return nil
+        end,
+        
+        -- Path 2: Direct from ReplicatedStorage.ReplicatedStorage (nested)
+        function()
+            local RS = game:GetService("ReplicatedStorage")
+            local RS2 = RS:FindFirstChild("ReplicatedStorage")
+            if RS2 then
+                local Packages = RS2:FindFirstChild("Packages")
+                if Packages then
+                    local Knit = Packages:FindFirstChild("Knit")
+                    if Knit then
+                        local Services = Knit:FindFirstChild("Services")
+                        if Services then
+                            return Services:FindFirstChild("WeaponService")
+                        end
+                    end
+                end
+            end
+            return nil
+        end,
+        
+        -- Path 3: Search all of ReplicatedStorage
+        function()
+            local function Search(parent)
+                for _, child in pairs(parent:GetChildren()) do
+                    if child.Name == "WeaponService" then
+                        return child
+                    end
+                    if child:IsA("Folder") or child:IsA("ModuleScript") then
+                        local found = Search(child)
+                        if found then return found end
+                    end
+                end
+                return nil
+            end
+            return Search(game:GetService("ReplicatedStorage"))
+        end
+    }
+    
+    for i, pathFunc in pairs(paths) do
+        local service = pathFunc()
+        if service then
+            print("✅ Found WeaponService at path " .. i)
+            return service
         end
     end
+    
+    print("❌ WeaponService not found!")
     return nil
 end
 
 -- ============================================
--- GET WEAPON ID
+-- FIND WEAPON ID
 -- ============================================
 
 function GetWeaponId()
@@ -44,7 +169,7 @@ function GetWeaponId()
             if Serial then
                 return Serial.Value
             end
-            -- Use tool name as fallback
+            -- Return tool name as fallback
             return child.Name
         end
     end
@@ -52,34 +177,13 @@ function GetWeaponId()
 end
 
 -- ============================================
--- GET MOB DATA
--- ============================================
-
-function GetMobData(Mob)
-    if not Mob then return nil end
-    
-    local MobId = Mob:FindFirstChild("Id")
-    if MobId then
-        return MobId.Value
-    end
-    
-    -- Check for other identifiers
-    local Humanoid = Mob:FindFirstChild("Humanoid")
-    if Humanoid then
-        return tostring(Humanoid)
-    end
-    
-    return Mob.Name
-end
-
--- ============================================
--- ATTACK A SINGLE MOB (Using WeaponService)
+-- ATTACK A SINGLE MOB
 -- ============================================
 
 function AttackMob(Mob)
     if not Mob then return false end
     
-    local WeaponService = GetWeaponService()
+    local WeaponService = FindWeaponService()
     if not WeaponService then
         print("❌ WeaponService not found!")
         return false
@@ -94,6 +198,10 @@ function AttackMob(Mob)
     local UseWeapon = RF:FindFirstChild("UseWeapon")
     if not UseWeapon then
         print("❌ UseWeapon not found!")
+        -- Try to find any function in RF
+        for _, func in pairs(RF:GetChildren()) do
+            print("  🔹 Found: " .. func.Name)
+        end
         return false
     end
     
@@ -110,20 +218,17 @@ function AttackMob(Mob)
     local WeaponId = GetWeaponId()
     if not WeaponId then
         print("⚠️ No weapon ID found, using default")
-        WeaponId = "HFA27LM88128" -- Default from your log
+        WeaponId = "HFA27LM88128"
     end
-    
-    -- Get mob ID
-    local MobId = GetMobData(Mob)
     
     -- Build the args (based on your log)
     local args = {
-        [1] = 0,                    -- Weapon slot or type
-        [2] = {},                   -- Empty table (maybe modifiers)
-        [3] = 0,                    -- Damage multiplier or hit type
-        [4] = nil,                  -- Not used
-        [5] = WeaponId,             -- Weapon identifier
-        [6] = {                     -- Position data
+        [1] = 0,
+        [2] = {},
+        [3] = 0,
+        [4] = nil,
+        [5] = WeaponId,
+        [6] = {
             CharacterPosition = HRP.Position,
             Direction = (MobHRP.Position - HRP.Position).Unit,
             Origin = HRP.Position + Vector3.new(0, 4, 0),
@@ -153,8 +258,10 @@ function KillAllMobs()
     local Mobs = workspace:FindFirstChild("Mobs")
     if not Mobs then 
         print("❌ No Mobs found!")
-        Status.Text = "❌ No Mobs"
-        Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        if Status then
+            Status.Text = "❌ No Mobs"
+            Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        end
         return 
     end
     
@@ -171,33 +278,39 @@ function KillAllMobs()
     
     if #AliveMobs == 0 then
         print("✅ No alive mobs found!")
-        Status.Text = "✅ No mobs to kill"
-        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        if Status then
+            Status.Text = "✅ No mobs to kill"
+            Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        end
         return
     end
     
     print("🔍 Found " .. #AliveMobs .. " alive mobs")
-    Status.Text = "💀 Killing " .. #AliveMobs .. " mobs..."
-    Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+    if Status then
+        Status.Text = "💀 Killing " .. #AliveMobs .. " mobs..."
+        Status.TextColor3 = Color3.fromRGB(255, 200, 100)
+    end
     
     local KillCount = 0
     for _, Mob in pairs(AliveMobs) do
         if AttackMob(Mob) then
             KillCount = KillCount + 1
         end
-        task.wait(0.1) -- Small delay between attacks
+        task.wait(0.1)
     end
     
     print("✅ Attacked " .. KillCount .. " mobs!")
-    Status.Text = "💀 Attacked " .. KillCount .. " mobs"
-    Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-    task.wait(1.5)
-    Status.Text = "⏹️ Ready"
-    Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    if Status then
+        Status.Text = "💀 Attacked " .. KillCount .. " mobs"
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        task.wait(1.5)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
 end
 
 -- ============================================
--- GET NEAREST MOB (For testing)
+-- GET NEAREST MOB
 -- ============================================
 
 function GetNearestMob()
@@ -233,59 +346,6 @@ function GetNearestMob()
 end
 
 -- ============================================
--- GUI
--- ============================================
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.Name = "KillAuraGUI"
-
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 220, 0, 120)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -60)
-Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-Frame.BackgroundTransparency = 0.2
-Frame.BorderSizePixel = 0
-Frame.Parent = ScreenGui
-
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 8)
-Corner.Parent = Frame
-
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 25)
-Title.Position = UDim2.new(0, 0, 0, 2)
-Title.Text = "💀 Kill All Mobs"
-Title.TextScaled = true
-Title.BackgroundTransparency = 1
-Title.TextColor3 = Color3.fromRGB(255, 100, 100)
-Title.Parent = Frame
-
-local Status = Instance.new("TextLabel")
-Status.Size = UDim2.new(1, 0, 0, 25)
-Status.Position = UDim2.new(0, 0, 0, 28)
-Status.Text = "⏹️ Ready"
-Status.TextScaled = true
-Status.BackgroundTransparency = 1
-Status.TextColor3 = Color3.fromRGB(255, 255, 255)
-Status.Font = Enum.Font.SourceSans
-Status.Parent = Frame
-
-local KillBtn = Instance.new("TextButton")
-KillBtn.Size = UDim2.new(0, 100, 0, 28)
-KillBtn.Position = UDim2.new(0.5, -50, 0, 58)
-KillBtn.Text = "💀 KILL ALL"
-KillBtn.TextScaled = true
-KillBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-KillBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-KillBtn.BorderSizePixel = 0
-KillBtn.Parent = Frame
-
-local BtnCorner = Instance.new("UICorner")
-BtnCorner.CornerRadius = UDim.new(0, 6)
-BtnCorner.Parent = KillBtn
-
--- ============================================
 -- BUTTONS & KEYBINDS
 -- ============================================
 
@@ -293,14 +353,33 @@ KillBtn.MouseButton1Click:Connect(function()
     KillAllMobs()
 end)
 
+DebugBtn.MouseButton1Click:Connect(function()
+    local service = FindWeaponService()
+    if service then
+        print("✅ Found: " .. service:GetFullName())
+        Status.Text = "✅ Found WeaponService"
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        task.wait(2)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        print("❌ WeaponService not found!")
+        Status.Text = "❌ Not found!"
+        Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.wait(2)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
 local UserInputService = game:GetService("UserInputService")
+
 UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.K then
         KillAllMobs()
     end
 end)
 
--- Test attack on nearest mob (Press J)
 UserInputService.InputBegan:Connect(function(Input, Processed)
     if not Processed and Input.KeyCode == Enum.KeyCode.J then
         local Mob = GetNearestMob()
@@ -345,7 +424,7 @@ end)
 -- START
 -- ============================================
 
-print("💀 Kill All Mobs (WeaponService) Loaded!")
+print("💀 Kill All Mobs (Fixed) Loaded!")
 print("📌 Press 'K' to kill all mobs")
 print("📌 Press 'J' to test attack on nearest mob")
-print("📌 Using WeaponService.RF.UseWeapon")
+print("📌 Click 'FIND SERVICE' to locate WeaponService")
