@@ -1,5 +1,5 @@
 -- ============================================
--- KILL ALL MOBS - WORKING VERSION
+-- KILL ALL MOBS - KNIT DEEP SEARCH
 -- ============================================
 
 local Players = game:GetService("Players")
@@ -7,7 +7,64 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- ============================================
--- AUTO-DETECT WORKING METHOD
+-- FIND DAMAGE FUNCTION IN KNIT
+-- ============================================
+
+function FindDamageFunction()
+    local Knit = ReplicatedStorage:FindFirstChild("Packages")
+    if not Knit then return nil end
+    
+    local KnitService = Knit:FindFirstChild("Knit")
+    if not KnitService then return nil end
+    
+    local Services = KnitService:FindFirstChild("Services")
+    if not Services then return nil end
+    
+    -- List of possible damage service names
+    local ServiceNames = {
+        "CombatService", "DamageService", "MobService", 
+        "BattleService", "FightingService", "PlayerService",
+        "WeaponService", "AttackService"
+    }
+    
+    for _, serviceName in pairs(ServiceNames) do
+        local Service = Services:FindFirstChild(serviceName)
+        if Service then
+            local RF = Service:FindFirstChild("RF")
+            if RF then
+                -- Look for damage functions
+                for _, func in pairs(RF:GetChildren()) do
+                    local name = func.Name:lower()
+                    if name:find("damage") or name:find("hit") or name:find("attack") or 
+                       name:find("deal") or name:find("kill") or name:find("hurt") then
+                        print("✅ Found: " .. serviceName .. "." .. func.Name)
+                        return func, Service
+                    end
+                end
+            end
+        end
+    end
+    
+    -- If not found by name, check all services
+    for _, Service in pairs(Services:GetChildren()) do
+        local RF = Service:FindFirstChild("RF")
+        if RF then
+            for _, func in pairs(RF:GetChildren()) do
+                local name = func.Name:lower()
+                if name:find("damage") or name:find("hit") or name:find("attack") or 
+                   name:find("deal") or name:find("kill") or name:find("hurt") then
+                    print("✅ Found: " .. Service.Name .. "." .. func.Name)
+                    return func, Service
+                end
+            end
+        end
+    end
+    
+    return nil, nil
+end
+
+-- ============================================
+-- KILL ALL MOBS
 -- ============================================
 
 function KillAllMobs()
@@ -17,121 +74,59 @@ function KillAllMobs()
         return 
     end
     
-    print("🔍 Finding working damage method...")
+    -- Get the damage function
+    local DamageFunc, Service = FindDamageFunction()
     
-    -- METHOD 1: Knit Services (Most common)
-    local success = false
-    pcall(function()
+    if DamageFunc then
+        print("🔧 Using: " .. Service.Name .. "." .. DamageFunc.Name)
+        local KillCount = 0
+        
+        for _, Mob in pairs(Mobs:GetChildren()) do
+            if Mob:IsA("Model") then
+                local Humanoid = Mob:FindFirstChild("Humanoid")
+                if Humanoid and Humanoid.Health > 0 then
+                    pcall(function()
+                        -- Try different invocation methods
+                        if DamageFunc:IsA("RemoteFunction") then
+                            DamageFunc:InvokeServer(Mob, 99999)
+                        elseif DamageFunc:IsA("RemoteEvent") then
+                            DamageFunc:FireServer(Mob, 99999)
+                        elseif DamageFunc:IsA("BindableEvent") then
+                            DamageFunc:Fire(Mob, 99999)
+                        end
+                        KillCount = KillCount + 1
+                    end)
+                end
+            end
+        end
+        
+        print("✅ Attempted to kill " .. KillCount .. " mobs!")
+        Status.Text = "💀 Killed " .. KillCount .. " mobs"
+        Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.wait(1)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+        
+    else
+        print("❌ No damage function found!")
+        print("📋 Available services:")
         local Knit = ReplicatedStorage:FindFirstChild("Packages")
         if Knit then
             local KnitService = Knit:FindFirstChild("Knit")
             if KnitService then
                 local Services = KnitService:FindFirstChild("Services")
                 if Services then
-                    -- Try CombatService
-                    local CombatService = Services:FindFirstChild("CombatService")
-                    if CombatService then
-                        local RF = CombatService:FindFirstChild("RF")
-                        if RF then
-                            local DealDamage = RF:FindFirstChild("DealDamage")
-                            if DealDamage then
-                                print("✅ Using CombatService.DealDamage")
-                                for _, Mob in pairs(Mobs:GetChildren()) do
-                                    if Mob:IsA("Model") then
-                                        local Humanoid = Mob:FindFirstChild("Humanoid")
-                                        if Humanoid and Humanoid.Health > 0 then
-                                            DealDamage:InvokeServer(Mob, 99999)
-                                        end
-                                    end
-                                end
-                                success = true
-                                return
-                            end
-                        end
+                    for _, service in pairs(Services:GetChildren()) do
+                        print("  📁 " .. service.Name)
                     end
                 end
             end
         end
-    end)
-    
-    if success then return end
-    
-    -- METHOD 2: Search ReplicatedStorage for damage remotes
-    pcall(function()
-        local function SearchDamageRemote(parent)
-            for _, child in pairs(parent:GetChildren()) do
-                if child:IsA("RemoteEvent") or child:IsA("RemoteFunction") then
-                    local name = child.Name:lower()
-                    if name:find("damage") or name:find("hit") or name:find("attack") or name:find("deal") then
-                        print("✅ Using: " .. child.Name)
-                        for _, Mob in pairs(Mobs:GetChildren()) do
-                            if Mob:IsA("Model") then
-                                local Humanoid = Mob:FindFirstChild("Humanoid")
-                                if Humanoid and Humanoid.Health > 0 then
-                                    if child:IsA("RemoteEvent") then
-                                        child:FireServer(Mob, 99999)
-                                    else
-                                        child:InvokeServer(Mob, 99999)
-                                    end
-                                end
-                            end
-                        end
-                        success = true
-                        return true
-                    end
-                end
-                if child:IsA("Folder") or child:IsA("ModuleScript") then
-                    if SearchDamageRemote(child) then
-                        return true
-                    end
-                end
-            end
-            return false
-        end
-        
-        SearchDamageRemote(ReplicatedStorage)
-    end)
-    
-    if success then return end
-    
-    -- METHOD 3: Use weapon attack
-    pcall(function()
-        local Character = LocalPlayer.Character
-        if Character then
-            for _, child in pairs(Character:GetChildren()) do
-                if child:IsA("Tool") then
-                    local AttackRemote = nil
-                    for _, obj in pairs(child:GetDescendants()) do
-                        if obj:IsA("RemoteEvent") and obj.Name:lower():find("attack") then
-                            AttackRemote = obj
-                            break
-                        end
-                    end
-                    if AttackRemote then
-                        print("✅ Using weapon: " .. child.Name)
-                        for _, Mob in pairs(Mobs:GetChildren()) do
-                            if Mob:IsA("Model") then
-                                local Humanoid = Mob:FindFirstChild("Humanoid")
-                                if Humanoid and Humanoid.Health > 0 then
-                                    AttackRemote:FireServer(Mob)
-                                end
-                            end
-                        end
-                        success = true
-                        return
-                    end
-                end
-            end
-        end
-    end)
-    
-    if success then return end
-    
-    -- METHOD 4: Debug - Print what's available
-    print("❌ No working method found!")
-    print("📋 Available in ReplicatedStorage:")
-    for _, child in pairs(ReplicatedStorage:GetChildren()) do
-        print("  - " .. child.Name .. " (" .. child.ClassName .. ")")
+        Status.Text = "❌ No damage function found"
+        Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.wait(2)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
     end
 end
 
@@ -144,8 +139,8 @@ ScreenGui.Parent = game:GetService("CoreGui")
 ScreenGui.Name = "KillAuraGUI"
 
 local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(0, 200, 0, 100)
-Frame.Position = UDim2.new(0.01, 0, 0.5, -50)
+Frame.Size = UDim2.new(0, 220, 0, 120)
+Frame.Position = UDim2.new(0.01, 0, 0.5, -60)
 Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 Frame.BackgroundTransparency = 0.2
 Frame.BorderSizePixel = 0
@@ -188,20 +183,53 @@ local BtnCorner = Instance.new("UICorner")
 BtnCorner.CornerRadius = UDim.new(0, 6)
 BtnCorner.Parent = KillBtn
 
+-- Debug Button
+local DebugBtn = Instance.new("TextButton")
+DebugBtn.Size = UDim2.new(0, 100, 0, 25)
+DebugBtn.Position = UDim2.new(0.5, -50, 0, 90)
+DebugBtn.Text = "🔍 DEBUG"
+DebugBtn.TextScaled = true
+DebugBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+DebugBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+DebugBtn.BorderSizePixel = 0
+DebugBtn.Parent = Frame
+
+local DebugCorner = Instance.new("UICorner")
+DebugCorner.CornerRadius = UDim.new(0, 6)
+DebugCorner.Parent = DebugBtn
+
 -- ============================================
--- BUTTONS & KEYBINDS
+-- BUTTONS
 -- ============================================
 
 KillBtn.MouseButton1Click:Connect(function()
-    Status.Text = "💀 Killing..."
-    Status.TextColor3 = Color3.fromRGB(255, 200, 100)
     KillAllMobs()
-    Status.Text = "✅ Done!"
-    Status.TextColor3 = Color3.fromRGB(100, 255, 100)
-    task.wait(1)
-    Status.Text = "⏹️ Ready"
-    Status.TextColor3 = Color3.fromRGB(255, 255, 255)
 end)
+
+DebugBtn.MouseButton1Click:Connect(function()
+    print("🔍 Deep searching for damage functions...")
+    local func, service = FindDamageFunction()
+    if func then
+        print("✅ Found: " .. service.Name .. "." .. func.Name)
+        print("   Type: " .. func.ClassName)
+        Status.Text = "✅ Found: " .. func.Name
+        Status.TextColor3 = Color3.fromRGB(100, 255, 100)
+        task.wait(2)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    else
+        print("❌ No damage function found!")
+        Status.Text = "❌ No damage function"
+        Status.TextColor3 = Color3.fromRGB(255, 100, 100)
+        task.wait(2)
+        Status.Text = "⏹️ Ready"
+        Status.TextColor3 = Color3.fromRGB(255, 255, 255)
+    end
+end)
+
+-- ============================================
+-- KEYBIND: Press K to kill all
+-- ============================================
 
 local UserInputService = game:GetService("UserInputService")
 UserInputService.InputBegan:Connect(function(Input, Processed)
@@ -242,6 +270,7 @@ end)
 -- START
 -- ============================================
 
-print("💀 Kill All Mobs Script Loaded!")
+print("💀 Kill All Mobs (Knit Deep Search) Loaded!")
 print("📌 Press 'K' or click 'KILL ALL' button")
-print("📌 Script will auto-detect the working method")
+print("📌 Click 'DEBUG' to find the damage function")
+print("📌 Check the console for results")
