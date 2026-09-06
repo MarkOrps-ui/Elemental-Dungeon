@@ -1,0 +1,231 @@
+-- ============================================
+-- KILL MOBS - USING MOB INSTANCE
+-- ============================================
+
+local RS = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Find UseWeapon
+local WS = RS:FindFirstChild("ReplicatedStorage"):FindFirstChild("Packages"):FindFirstChild("Knit"):FindFirstChild("Services"):FindFirstChild("WeaponService")
+local RF = WS:FindFirstChild("RF")
+local UW = RF:FindFirstChild("UseWeapon")
+
+print("✅ UseWeapon found!")
+
+function GetWeaponId()
+    local c = LocalPlayer.Character
+    if not c then return "Doombringer" end
+    for _, t in pairs(c:GetChildren()) do
+        if t:IsA("Tool") then
+            local id = t:FindFirstChild("WeaponId")
+            if id then return id.Value end
+            return t.Name
+        end
+    end
+    return "Doombringer"
+end
+
+function GetMobHealth(mob)
+    if not mob then return 0 end
+    local h = mob:FindFirstChild("Humanoid")
+    if h then return h.Health end
+    return 0
+end
+
+function AttackMob(mob)
+    if not mob then return false end
+    
+    local c = LocalPlayer.Character
+    if not c then return false end
+    
+    local hrp = c:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    
+    local mobHrp = mob:FindFirstChild("HumanoidRootPart")
+    if not mobHrp then
+        print("❌ " .. mob.Name .. " has no HumanoidRootPart")
+        return false
+    end
+    
+    local health = GetMobHealth(mob)
+    if health <= 0 then
+        print("❌ " .. mob.Name .. " is already dead")
+        return false
+    end
+    
+    local weaponId = GetWeaponId()
+    
+    print("🎯 Attacking: " .. mob.Name .. " (HP: " .. health .. ")")
+    
+    -- Face the mob
+    hrp.CFrame = CFrame.lookAt(hrp.Position, mobHrp.Position)
+    
+    local formats = {
+        -- Format: mob instance as first arg
+        function()
+            return {
+                [1] = mob,
+                [2] = 0,
+                [3] = {},
+                [4] = 999999,
+                [5] = weaponId,
+                [6] = {
+                    CharacterPosition = hrp.Position,
+                    Direction = (mobHrp.Position - hrp.Position).Unit,
+                    Origin = hrp.Position + Vector3.new(0, 4, 0),
+                    Position = mobHrp.Position
+                }
+            }
+        end,
+        -- Format: mob as target in position data
+        function()
+            return {
+                [1] = 0,
+                [2] = {},
+                [3] = 999999,
+                [4] = nil,
+                [5] = weaponId,
+                [6] = {
+                    CharacterPosition = hrp.Position,
+                    Direction = (mobHrp.Position - hrp.Position).Unit,
+                    Origin = hrp.Position + Vector3.new(0, 4, 0),
+                    Position = mobHrp.Position,
+                    Target = mob
+                }
+            }
+        end,
+        -- Format: mob as 2nd arg
+        function()
+            return {
+                [1] = 0,
+                [2] = mob,
+                [3] = {},
+                [4] = 999999,
+                [5] = weaponId,
+                [6] = {
+                    CharacterPosition = hrp.Position,
+                    Direction = (mobHrp.Position - hrp.Position).Unit,
+                    Origin = hrp.Position + Vector3.new(0, 4, 0),
+                    Position = mobHrp.Position
+                }
+            }
+        end
+    }
+    
+    local success = false
+    
+    for i, formatFunc in ipairs(formats) do
+        if not success then
+            local args = formatFunc()
+            local result = pcall(function()
+                UW:InvokeServer(unpack(args, 1, args.n or #args))
+            end)
+            if result then
+                print("  ✅ Format " .. i .. " sent")
+                success = true
+            end
+            task.wait(0.1)
+        end
+    end
+    
+    task.wait(0.3)
+    local newHealth = GetMobHealth(mob)
+    if newHealth <= 0 then
+        print("  💀 Mob DIED!")
+        return true
+    else
+        print("  ❌ Still alive (HP: " .. newHealth .. ")")
+        return false
+    end
+end
+
+function GetNearestMob()
+    local c = LocalPlayer.Character
+    if not c then return nil end
+    local hrp = c:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    
+    local Mobs = workspace:FindFirstChild("Mobs")
+    if not Mobs then return nil end
+    
+    local nearest = nil
+    local nearestDist = math.huge
+    
+    for _, mob in pairs(Mobs:GetChildren()) do
+        if mob:IsA("Model") then
+            local h = mob:FindFirstChild("Humanoid")
+            if h and h.Health > 0 then
+                local mhrp = mob:FindFirstChild("HumanoidRootPart")
+                if mhrp then
+                    local dist = (hrp.Position - mhrp.Position).Magnitude
+                    if dist < nearestDist then
+                        nearestDist = dist
+                        nearest = mob
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+function KillAll()
+    local Mobs = workspace:FindFirstChild("Mobs")
+    if not Mobs then 
+        print("❌ No Mobs found!")
+        return 
+    end
+    
+    local Alive = {}
+    for _, mob in pairs(Mobs:GetChildren()) do
+        if mob:IsA("Model") then
+            local h = mob:FindFirstChild("Humanoid")
+            if h and h.Health > 0 then
+                table.insert(Alive, mob)
+            end
+        end
+    end
+    
+    if #Alive == 0 then
+        print("✅ No alive mobs!")
+        return
+    end
+    
+    print("🔍 Found " .. #Alive .. " alive mobs")
+    
+    local killed = 0
+    for _, mob in pairs(Alive) do
+        if AttackMob(mob) then
+            killed = killed + 1
+        end
+        task.wait(0.2)
+    end
+    
+    print("💀 Killed " .. killed .. " / " .. #Alive .. " mobs")
+end
+
+local UIS = game:GetService("UserInputService")
+
+UIS.InputBegan:Connect(function(i)
+    if i.KeyCode == Enum.KeyCode.K then
+        print("💀 Killing all mobs...")
+        KillAll()
+    end
+end)
+
+UIS.InputBegan:Connect(function(i)
+    if i.KeyCode == Enum.KeyCode.J then
+        local mob = GetNearestMob()
+        if mob then
+            print("🎯 Testing on: " .. mob.Name)
+            AttackMob(mob)
+        else
+            print("❌ No mob nearby")
+        end
+    end
+end)
+
+print("💀 Kill All Mobs - Mob Instance Version Loaded!")
+print("📌 Press 'J' to test attack")
+print("📌 Press 'K' to kill all mobs")
