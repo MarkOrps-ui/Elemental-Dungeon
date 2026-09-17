@@ -10,7 +10,7 @@ local Settings = {
     FarmDistance = 5,
     FarmPosition = "Above",  -- "Behind", "Above", "Under"
     SearchRange = 2000,
-    MoveSpeed = 0.5,         -- Movement speed (seconds)
+    MoveSpeed = 0.8,         -- Movement speed (seconds)
     AutoFarm = false,
 }
 
