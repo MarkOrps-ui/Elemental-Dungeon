@@ -7,7 +7,7 @@
 -- ============================================
 
 local Settings = {
-    FarmDistance = 5,
+    FarmDistance = 50,
     FarmPosition = "Above", -- "Behind", "Above", "Under"
     SearchRange = 2000,       -- How far to search for mobs
     AutoFarm = false,
