@@ -363,7 +363,7 @@ DistMinus.MouseButton1Click:Connect(function()
 end)
 
 DistPlus.MouseButton1Click:Connect(function()
-    if Settings.FarmDistance < 20 then
+    if Settings.FarmDistance < 50 then
         Settings.FarmDistance = Settings.FarmDistance + 1
         DistLabel.Text = "Dist: " .. Settings.FarmDistance
     end
