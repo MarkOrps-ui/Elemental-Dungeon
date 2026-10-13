@@ -7,7 +7,7 @@
 -- ============================================
 
 local Settings = {
-    FarmDistance = 50,
+    FarmDistance = 60,
     FarmPosition = "Above", -- "Behind", "Above", "Under"
     SearchRange = 2000,       -- How far to search for mobs
     AutoFarm = false,
@@ -363,7 +363,7 @@ DistMinus.MouseButton1Click:Connect(function()
 end)
 
 DistPlus.MouseButton1Click:Connect(function()
-    if Settings.FarmDistance < 50 then
+    if Settings.FarmDistance < 100 then
         Settings.FarmDistance = Settings.FarmDistance + 1
         DistLabel.Text = "Dist: " .. Settings.FarmDistance
     end
