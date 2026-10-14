@@ -357,14 +357,14 @@ end)
 
 DistMinus.MouseButton1Click:Connect(function()
     if Settings.FarmDistance > 1 then
-        Settings.FarmDistance = Settings.FarmDistance - 1
+        Settings.FarmDistance = Settings.FarmDistance - 5
         DistLabel.Text = "Dist: " .. Settings.FarmDistance
     end
 end)
 
 DistPlus.MouseButton1Click:Connect(function()
-    if Settings.FarmDistance < 100 then
-        Settings.FarmDistance = Settings.FarmDistance + 1
+    if Settings.FarmDistance < 500 then
+        Settings.FarmDistance = Settings.FarmDistance + 5
         DistLabel.Text = "Dist: " .. Settings.FarmDistance
     end
 end)
